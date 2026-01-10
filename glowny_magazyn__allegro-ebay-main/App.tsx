@@ -363,14 +363,14 @@ const App: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <ChannelCard title="Allegro" accent="indigo" data={reportData?.allegro} loading={reportLoading} />
-                <ChannelCard title="eBay" accent="emerald" data={reportData?.ebay} loading={reportLoading} />
+                <ChannelCard title="Allegro" accent="indigo" data={reportData?.allegro} loading={reportLoading} currency="PLN" />
+                <ChannelCard title="eBay" accent="emerald" data={reportData?.ebay} loading={reportLoading} currency="EUR" />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <SummaryCard label="Koszt zakupów" value={reportData?.purchasesCost ?? 0} tone="slate" loading={reportLoading} />
-                <SummaryCard label="Zysk Allegro" value={reportData?.allegroProfit ?? 0} tone="indigo" loading={reportLoading} />
-                <SummaryCard label="Zysk eBay" value={reportData?.ebayProfit ?? 0} tone="emerald" loading={reportLoading} />
+                <SummaryCard label="Koszt zakupów" value={reportData?.purchasesCost ?? 0} tone="slate" loading={reportLoading} currency="PLN" />
+                <SummaryCard label="Zysk Allegro" value={reportData?.allegroProfit ?? 0} tone="indigo" loading={reportLoading} currency="PLN" />
+                <SummaryCard label="Zysk eBay" value={reportData?.ebayProfit ?? 0} tone="emerald" loading={reportLoading} currency="EUR" />
               </div>
 
               {reportError && (
@@ -520,9 +520,11 @@ const App: React.FC = () => {
   );
 };
 
-const formatCurrency = (value: number) => `${value.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN`;
+const formatCurrency = (value: number, currency: 'PLN' | 'EUR' = 'PLN') => {
+  return value.toLocaleString('pl-PL', { style: 'currency', currency, minimumFractionDigits: 2 });
+};
 
-const ChannelCard: React.FC<{ title: string; accent: 'indigo' | 'emerald'; data?: ChannelReport; loading: boolean }> = ({ title, accent, data, loading }) => {
+const ChannelCard: React.FC<{ title: string; accent: 'indigo' | 'emerald'; data?: ChannelReport; loading: boolean; currency?: 'PLN' | 'EUR' }> = ({ title, accent, data, loading, currency = 'PLN' }) => {
   const accentMap: Record<string, string> = {
     indigo: 'bg-indigo-50 border-indigo-100 text-indigo-800',
     emerald: 'bg-emerald-50 border-emerald-100 text-emerald-800',
@@ -545,24 +547,24 @@ const ChannelCard: React.FC<{ title: string; accent: 'indigo' | 'emerald'; data?
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div className="space-y-1">
             <p className="text-slate-500 font-semibold">Reklamy</p>
-            <p className="text-slate-900 font-black text-lg">{formatCurrency(data.ads || 0)}</p>
+            <p className="text-slate-900 font-black text-lg">{formatCurrency(data.ads || 0, currency)}</p>
           </div>
           <div className="space-y-1">
             <p className="text-slate-500 font-semibold">Wysyłki</p>
-            <p className="text-slate-900 font-black text-lg">{formatCurrency(data.shipping || 0)}</p>
+            <p className="text-slate-900 font-black text-lg">{formatCurrency(data.shipping || 0, currency)}</p>
           </div>
           <div className="space-y-1">
             <p className="text-slate-500 font-semibold">Zwroty</p>
-            <p className="text-slate-900 font-black text-lg">{formatCurrency(data.returns || 0)}</p>
+            <p className="text-slate-900 font-black text-lg">{formatCurrency(data.returns || 0, currency)}</p>
           </div>
           <div className="space-y-1">
             <p className="text-slate-500 font-semibold">Czysty zysk</p>
-            <p className={`font-black text-lg ${data.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>{formatCurrency(data.netProfit || 0)}</p>
+            <p className={`font-black text-lg ${data.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>{formatCurrency(data.netProfit || 0, currency)}</p>
           </div>
           {typeof data.revenue === 'number' && (
             <div className="col-span-2 space-y-1">
               <p className="text-slate-500 font-semibold">Przychód</p>
-              <p className="text-slate-900 font-black text-lg">{formatCurrency(data.revenue || 0)}</p>
+              <p className="text-slate-900 font-black text-lg">{formatCurrency(data.revenue || 0, currency)}</p>
             </div>
           )}
         </div>
@@ -573,7 +575,7 @@ const ChannelCard: React.FC<{ title: string; accent: 'indigo' | 'emerald'; data?
   );
 };
 
-const SummaryCard: React.FC<{ label: string; value: number; tone: 'slate' | 'indigo' | 'emerald'; loading: boolean }> = ({ label, value, tone, loading }) => {
+const SummaryCard: React.FC<{ label: string; value: number; tone: 'slate' | 'indigo' | 'emerald'; loading: boolean; currency?: 'PLN' | 'EUR' }> = ({ label, value, tone, loading, currency = 'PLN' }) => {
   const toneMap: Record<string, string> = {
     slate: 'bg-slate-50 text-slate-900',
     indigo: 'bg-indigo-50 text-indigo-900',
@@ -586,7 +588,7 @@ const SummaryCard: React.FC<{ label: string; value: number; tone: 'slate' | 'ind
       {loading ? (
         <div className="mt-3 h-6 bg-white/60 rounded animate-pulse"></div>
       ) : (
-        <p className="text-2xl font-black mt-2">{formatCurrency(value || 0)}</p>
+        <p className="text-2xl font-black mt-2">{formatCurrency(value || 0, currency)}</p>
       )}
     </div>
   );
