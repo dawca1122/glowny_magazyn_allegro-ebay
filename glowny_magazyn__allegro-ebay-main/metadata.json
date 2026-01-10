@@ -1,0 +1,5 @@
+{
+  "name": "Advanced Warehouse & Sales Dashboard",
+  "description": "A professional management system for Allegro and eBay inventory, featuring real-time Supabase integration, stock synchronization, and profit analysis.",
+  "requestFramePermissions": []
+}
