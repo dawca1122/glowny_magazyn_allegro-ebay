@@ -87,13 +87,16 @@ export const inventoryService = {
       }
       return;
     }
-    const { data, error } = await supabase.from('inventory').update(updates).eq('sku', sku);
+
+    // Supabase: nie wysyłaj pól, których może nie być w schemacie (np. doc_status)
+    const { doc_status, ...safeUpdates } = updates as any;
+    const { data, error } = await supabase.from('inventory').update(safeUpdates).eq('sku', sku);
     if (error) throw error;
     return data;
   },
 
   async createItem(item: Omit<InventoryItem, 'created_at'>): Promise<InventoryItem> {
-    const payload: InventoryItem = {
+    const basePayload: InventoryItem = {
       ...item,
       document_status: item.document_status || item.doc_status || 'Oczekuje',
       doc_status: item.doc_status || item.document_status || 'Oczekuje',
@@ -102,12 +105,14 @@ export const inventoryService = {
 
     if (!supabase) {
       const data = getMockData();
-      const next = [...data, payload];
+      const next = [...data, basePayload];
       saveMockData(next);
-      return payload;
+      return basePayload;
     }
 
-    const { data, error } = await supabase.from('inventory').insert([payload]).select().single();
+    // Supabase: usuń doc_status jeśli tabela go nie ma
+    const { doc_status, ...dbPayload } = basePayload as any;
+    const { data, error } = await supabase.from('inventory').insert([dbPayload]).select().single();
     if (error) throw error;
     return data as InventoryItem;
   },
