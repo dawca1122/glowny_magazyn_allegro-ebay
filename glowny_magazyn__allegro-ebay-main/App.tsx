@@ -13,6 +13,7 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [supabaseHealth, setSupabaseHealth] = useState<'disabled' | 'unknown' | 'ok' | 'error'>(isConfigured ? 'unknown' : 'disabled');
   const [showAddModal, setShowAddModal] = useState(false);
   const [addForm, setAddForm] = useState({
     name: '',
@@ -31,8 +32,10 @@ const App: React.FC = () => {
       setLoading(true);
       const data = await inventoryService.fetchAll();
       setItems(data);
+      if (isConfigured) setSupabaseHealth('ok');
     } catch (error) {
       showNotification('Błąd podczas pobierania danych z Supabase.', 'error');
+      if (isConfigured) setSupabaseHealth('error');
     } finally {
       setLoading(false);
     }
@@ -40,6 +43,18 @@ const App: React.FC = () => {
 
   useEffect(() => {
     fetchItems();
+    const checkConnection = async () => {
+      if (!isConfigured) return;
+      try {
+        const healthy = await inventoryService.checkConnection();
+        setSupabaseHealth(healthy ? 'ok' : 'error');
+        if (!healthy) showNotification('Brak połączenia z Supabase.', 'error');
+      } catch (e) {
+        setSupabaseHealth('error');
+        showNotification('Nie udało się zweryfikować połączenia z Supabase.', 'error');
+      }
+    };
+    checkConnection();
   }, []);
 
   const showNotification = (message: string, type: 'success' | 'error') => {
@@ -125,13 +140,15 @@ const App: React.FC = () => {
 
         <div className="p-4 border-t border-slate-800">
           <div className={`mb-4 px-4 py-2.5 rounded-xl text-[10px] uppercase font-black tracking-[0.1em] flex items-center gap-2 ${
-            isConfigured ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
+            supabaseHealth === 'ok'
+              ? 'bg-emerald-500/10 text-emerald-400'
+              : supabaseHealth === 'error'
+                ? 'bg-rose-500/10 text-rose-400'
+                : 'bg-amber-500/10 text-amber-400'
           }`}>
-            {isConfigured ? (
-              <><Database className="w-3.5 h-3.5" /> Supabase Active</>
-            ) : (
-              <><CloudOff className="w-3.5 h-3.5" /> Demo Version</>
-            )}
+            {supabaseHealth === 'ok' && <><Database className="w-3.5 h-3.5" /> Supabase Active</>}
+            {supabaseHealth === 'error' && <><CloudOff className="w-3.5 h-3.5" /> Supabase Error</>}
+            {supabaseHealth !== 'ok' && supabaseHealth !== 'error' && <><CloudOff className="w-3.5 h-3.5" /> Demo Version</>}
           </div>
           <button 
             onClick={() => showNotification('Wylogowano (mock).', 'success')}

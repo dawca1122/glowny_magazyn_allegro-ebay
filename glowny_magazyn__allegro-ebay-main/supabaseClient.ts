@@ -111,6 +111,16 @@ export const inventoryService = {
     if (error) throw error;
     return data as InventoryItem;
   },
+  
+    async checkConnection(): Promise<boolean> {
+      if (!supabase) return false;
+      const { error } = await supabase.from('inventory').select('id').limit(1);
+      if (error) {
+        console.error('[Supabase] Connection check failed:', error.message);
+        return false;
+      }
+      return true;
+    }
 
   async subtractStock(sku: string, amount: number) {
     if (!supabase) {
