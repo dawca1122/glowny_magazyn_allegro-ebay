@@ -1,7 +1,13 @@
 // Lightweight client to fetch aggregated sales data by SKU from backend Allegro proxy
 // Expected response shape: { summary: { [sku]: { soldQty: number; gross: number } } }
 
-export type SalesSummaryEntry = { soldQty: number; gross: number };
+export type SalesSummaryEntry = {
+  soldQty: number;
+  gross: number;
+  shippingCost?: number;
+  adsCost?: number;
+  feeCost?: number;
+};
 export type SalesSummaryMap = Record<string, SalesSummaryEntry>;
 
 const getEnvVar = (name: string): string => {

@@ -209,7 +209,13 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {
             const totalUnitProfit = allegroProfit + ebayProfit;
 
             const salesInfo = sales[item.sku] || sales[item.sku.replace(/^SKU:\s*/i, '').trim()] || { soldQty: 0, gross: 0 };
-            const netSalesProfit = salesInfo.gross - salesInfo.soldQty * effectiveCost;
+            const shipping = salesInfo.shippingCost || 0;
+            const ads = salesInfo.adsCost || 0;
+            const fees = salesInfo.feeCost || 0;
+            const grossRevenue = salesInfo.gross || 0;
+            const soldQty = salesInfo.soldQty || 0;
+            const grossProfit = grossRevenue - shipping - ads - fees;
+            const netSalesProfit = grossProfit - soldQty * effectiveCost;
             
             const isSyncing = syncingSku === item.sku;
             const isUpdating = updatingSku === item.sku;
@@ -383,15 +389,28 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {
                             {(totalUnitProfit * effectiveStock).toFixed(2)}
                           </span>
                         </div>
-                        <div className="text-[11px] text-slate-500">
-                          <span className="font-black uppercase tracking-tighter mr-1">Sprzedano:</span>
-                          <span className="font-bold text-slate-700 mr-2">{salesInfo.soldQty} szt</span>
-                          <span className="font-black uppercase tracking-tighter mr-1">Przychód:</span>
-                          <span className="font-bold text-emerald-600 mr-2">{salesInfo.gross.toFixed(2)}</span>
-                          <span className="font-black uppercase tracking-tighter mr-1">Zysk netto:</span>
-                          <span className={`${netSalesProfit >= 0 ? 'text-emerald-600' : 'text-rose-500'} font-bold`}>
-                            {netSalesProfit.toFixed(2)}
-                          </span>
+                        <div className="text-[11px] text-slate-500 leading-4 space-y-0.5 text-right">
+                          <div>
+                            <span className="font-black uppercase tracking-tighter mr-1">Sprzedano:</span>
+                            <span className="font-bold text-slate-700 mr-2">{soldQty} szt</span>
+                            <span className="font-black uppercase tracking-tighter mr-1">Przychód:</span>
+                            <span className="font-bold text-emerald-600 mr-2">{grossRevenue.toFixed(2)}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-500">
+                            <span className="mr-2">Wysyłka: <span className="font-semibold text-slate-700">{shipping.toFixed(2)}</span></span>
+                            <span className="mr-2">Reklamy: <span className="font-semibold text-slate-700">{ads.toFixed(2)}</span></span>
+                            <span className="mr-2">Prowizje: <span className="font-semibold text-slate-700">{fees.toFixed(2)}</span></span>
+                          </div>
+                          <div>
+                            <span className="font-black uppercase tracking-tighter mr-1">Zysk brutto:</span>
+                            <span className={`${grossProfit >= 0 ? 'text-indigo-600' : 'text-rose-500'} font-bold mr-3`}>
+                              {grossProfit.toFixed(2)}
+                            </span>
+                            <span className="font-black uppercase tracking-tighter mr-1">Zysk netto:</span>
+                            <span className={`${netSalesProfit >= 0 ? 'text-emerald-600' : 'text-rose-500'} font-bold`}>
+                              {netSalesProfit.toFixed(2)}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>

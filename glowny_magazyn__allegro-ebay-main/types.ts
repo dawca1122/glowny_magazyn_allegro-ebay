@@ -25,5 +25,11 @@ export interface SyncPayload {
   }[];
 }
 
-export type SalesSummaryEntry = { soldQty: number; gross: number };
+export type SalesSummaryEntry = {
+  soldQty: number;
+  gross: number;
+  shippingCost?: number;
+  adsCost?: number;
+  feeCost?: number;
+};
 export type SalesSummaryMap = Record<string, SalesSummaryEntry>;
