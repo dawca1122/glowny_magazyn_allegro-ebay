@@ -26,9 +26,28 @@ create table if not exists public.sales_summary (
 
 create index if not exists idx_sales_summary_updated_at on public.sales_summary (updated_at desc);
 
+create table if not exists public.channel_reports (
+  id bigint generated always as identity primary key,
+  channel text not null check (channel in ('allegro','ebay')),
+  report_date date not null,
+  revenue numeric(14,2) not null default 0,
+  ads_cost numeric(14,2) not null default 0,
+  shipping_cost numeric(14,2) not null default 0,
+  returns_cost numeric(14,2) not null default 0,
+  fee_cost numeric(14,2) not null default 0,
+  purchases_cost numeric(14,2) not null default 0,
+  net_profit numeric(14,2) not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(channel, report_date)
+);
+
+create index if not exists idx_channel_reports_date on public.channel_reports (report_date desc);
+
 -- Basic row level security policies (adjust for production)
 alter table public.inventory enable row level security;
 alter table public.sales_summary enable row level security;
+alter table public.channel_reports enable row level security;
 
 do $$
 begin
@@ -37,6 +56,9 @@ begin
   end if;
   if not exists (select 1 from pg_policies where schemaname='public' and tablename='sales_summary' and policyname='sales_summary_allow_all') then
     create policy sales_summary_allow_all on public.sales_summary for all using (true) with check (true);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='channel_reports' and policyname='channel_reports_allow_all') then
+    create policy channel_reports_allow_all on public.channel_reports for all using (true) with check (true);
   end if;
 end
 $$;

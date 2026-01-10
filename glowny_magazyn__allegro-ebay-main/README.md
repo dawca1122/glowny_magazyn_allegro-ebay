@@ -28,4 +28,20 @@ Set these in Vercel for this frontend (Production/Preview):
 - Optional (real Supabase instead of mock): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
 - Optional (raporty finansowe): `VITE_REPORTS_ENDPOINT` — endpoint zwracający miesięczne/kwartalne podsumowania Allegro/eBay. Front przekazuje query `periodType=month|quarter` i `period=YYYY-MM` lub `period=YYYY-Q#`.
 
+## Backend (serverless) na Vercel
+
+Dodane funkcje w `/api`:
+- `POST /api/aggregate` – odświeża raport z Allegro (dzień wstecz), upsertuje do Supabase: `sales_summary` i `channel_reports`.
+- `GET /api/reports` – zwraca dane dla frontu (`VITE_REPORTS_ENDPOINT`). Query: `periodType=month|quarter`, `period=YYYY-MM` lub `YYYY-Q#`.
+
+Wymagane zmienne środowiskowe (Vercel/locals):
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_KEY` (service role key)
+- `ALLEGRO_CLIENT_ID`
+- `ALLEGRO_CLIENT_SECRET`
+- `ALLEGRO_REFRESH_TOKEN`
+- `VITE_REPORTS_ENDPOINT` – ustaw na pełny URL funkcji `/api/reports` po deployu
+
+Cron/scheduler: wywołuj `POST /api/aggregate` raz dziennie (np. Vercel Cron lub GitHub Actions) aby zapełniać Supabase.
+
 The target API (allegro-warehouse-manager.vercel.app) must use the same sync token (e.g., as `WAREHOUSE_SYNC_TOKEN`) so that requests from this app are authorized.
