@@ -136,23 +136,40 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify }) => {
         body: JSON.stringify(payload)
       });
 
+      const rawText = await response.text();
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API Error: ${response.status} ${errorText}`);
+        throw new Error(`API Error: ${response.status} ${rawText || 'Unknown error'}`);
       }
 
-      const newStock = Math.max(0, item.total_stock - amount);
-      await inventoryService.updateItem(item.sku, { total_stock: newStock });
-      onNotify(`Synchronizacja Allegro zakończona. Stan SKU: ${item.sku} zmniejszony o ${amount}.`, 'success');
-      
+      let parsed: any = null;
+      try {
+        parsed = rawText ? JSON.parse(rawText) : null;
+      } catch (e) {
+        console.error('[Sync] Failed to parse response JSON:', e);
+      }
+
+      const summary = parsed?.summary;
+      const result = parsed?.results?.[0];
+
+      if (summary?.updated >= 1) {
+        const newStock = Math.max(0, item.total_stock - amount);
+        await inventoryService.updateItem(item.sku, { total_stock: newStock });
+        onNotify(`Wysłano ${amount} szt. SKU ${item.sku}. API updated=${summary.updated}${summary.not_found ? `, not_found=${summary.not_found}` : ''}.`, 'success');
+      } else {
+        onNotify(`Brak aktualizacji dla SKU ${item.sku}. Odpowiedź API: ${rawText}`, 'error');
+      }
+
+      // wyczyść input po udanym wywołaniu niezależnie od parsowania
       setStockInputs(prev => {
         const next = { ...prev };
         if (next[item.sku]) next[item.sku].allegro = 0;
         return next;
       });
+
+      // jeśli API potwierdziło aktualizację lub przynajmniej przyjęło żądanie
       onRefresh();
-    } catch (err) {
-      onNotify('Błąd synchronizacji z API Allegro.', 'error');
+    } catch (err: any) {
+      onNotify(`Błąd synchronizacji z API Allegro: ${err?.message || 'Nieznany błąd'}`, 'error');
     } finally {
       setSyncingSku(null);
     }
