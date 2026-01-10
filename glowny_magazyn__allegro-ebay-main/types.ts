@@ -24,3 +24,6 @@ export interface SyncPayload {
     stock_warehouse: number;
   }[];
 }
+
+export type SalesSummaryEntry = { soldQty: number; gross: number };
+export type SalesSummaryMap = Record<string, SalesSummaryEntry>;

@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, Package, LogOut, Bell, Search, Plus, Database, CloudOff, TrendingUp, ShoppingBag, FileCheck } from 'lucide-react';
 import InventoryTable from './InventoryTable';
 import { inventoryService, isConfigured } from './supabaseClient';
-import { InventoryItem } from './types';
+import { InventoryItem, SalesSummaryMap } from './types';
+import { salesService } from './salesService';
 
 type View = 'dashboard' | 'magazyn';
 
@@ -12,6 +13,7 @@ const App: React.FC = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [salesSummary, setSalesSummary] = useState<SalesSummaryMap>({});
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [supabaseHealth, setSupabaseHealth] = useState<'disabled' | 'unknown' | 'ok' | 'error'>(isConfigured ? 'unknown' : 'disabled');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -41,8 +43,18 @@ const App: React.FC = () => {
     }
   };
 
+  const fetchSales = async () => {
+    try {
+      const summary = await salesService.fetchSummary();
+      setSalesSummary(summary);
+    } catch (err) {
+      console.error('[Sales] fetchSummary failed', err);
+    }
+  };
+
   useEffect(() => {
     fetchItems();
+    fetchSales();
     const checkConnection = async () => {
       if (!isConfigured) return;
       try {
@@ -229,7 +241,7 @@ const App: React.FC = () => {
               </div>
 
               <div className="bg-white rounded-[32px] shadow-2xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
-                <InventoryTable items={filteredItems} onRefresh={fetchItems} onNotify={showNotification} />
+                <InventoryTable items={filteredItems} onRefresh={() => { fetchItems(); fetchSales(); }} onNotify={showNotification} sales={salesSummary} />
               </div>
             </div>
           )}

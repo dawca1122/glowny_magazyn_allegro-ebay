@@ -1,13 +1,14 @@
 
 import React, { useState } from 'react';
 import { Send, CheckCircle, Clock, RefreshCw, Package, FileDown, Save } from 'lucide-react';
-import { DocumentStatus, InventoryItem, SyncPayload } from './types';
+import { DocumentStatus, InventoryItem, SyncPayload, SalesSummaryMap } from './types';
 import { inventoryService } from './supabaseClient';
 
 interface Props {
   items: InventoryItem[];
   onRefresh: () => void;
   onNotify: (msg: string, type: 'success' | 'error') => void;
+  sales?: SalesSummaryMap;
 }
 
 const getEnvVar = (name: string): string => {
@@ -22,7 +23,7 @@ const getEnvVar = (name: string): string => {
 const SYNC_TOKEN = getEnvVar('VITE_SYNC_TOKEN');
 const API_ENDPOINT = getEnvVar('VITE_API_ENDPOINT');
 
-const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify }) => {
+const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {} }) => {
   const [syncingSku, setSyncingSku] = useState<string | null>(null);
   const [updatingSku, setUpdatingSku] = useState<string | null>(null);
   const [stockInputs, setStockInputs] = useState<Record<string, { allegro: number; ebay: number }>>({});
@@ -206,6 +207,9 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify }) => {
             const allegroProfit = effectiveAllegroPrice - effectiveCost;
             const ebayProfit = effectiveEbayPrice - effectiveCost;
             const totalUnitProfit = allegroProfit + ebayProfit;
+
+            const salesInfo = sales[item.sku] || sales[item.sku.replace(/^SKU:\s*/i, '').trim()] || { soldQty: 0, gross: 0 };
+            const netSalesProfit = salesInfo.gross - salesInfo.soldQty * effectiveCost;
             
             const isSyncing = syncingSku === item.sku;
             const isUpdating = updatingSku === item.sku;
@@ -372,11 +376,23 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify }) => {
                           {isUpdating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                         </button>
                       )}
-                      <div className="text-right">
-                        <span className="text-[9px] text-slate-400 font-black uppercase tracking-tighter mr-1">Suma Zysku:</span>
-                        <span className="text-sm font-black text-indigo-600">
-                          {(totalUnitProfit * effectiveStock).toFixed(2)}
-                        </span>
+                      <div className="text-right space-y-0.5">
+                        <div>
+                          <span className="text-[9px] text-slate-400 font-black uppercase tracking-tighter mr-1">Suma Zysku:</span>
+                          <span className="text-sm font-black text-indigo-600">
+                            {(totalUnitProfit * effectiveStock).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          <span className="font-black uppercase tracking-tighter mr-1">Sprzedano:</span>
+                          <span className="font-bold text-slate-700 mr-2">{salesInfo.soldQty} szt</span>
+                          <span className="font-black uppercase tracking-tighter mr-1">Przychód:</span>
+                          <span className="font-bold text-emerald-600 mr-2">{salesInfo.gross.toFixed(2)}</span>
+                          <span className="font-black uppercase tracking-tighter mr-1">Zysk netto:</span>
+                          <span className={`${netSalesProfit >= 0 ? 'text-emerald-600' : 'text-rose-500'} font-bold`}>
+                            {netSalesProfit.toFixed(2)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
