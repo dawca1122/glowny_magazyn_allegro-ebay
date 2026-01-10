@@ -33,3 +33,24 @@ export type SalesSummaryEntry = {
   feeCost?: number;
 };
 export type SalesSummaryMap = Record<string, SalesSummaryEntry>;
+
+export type ReportPeriodType = 'month' | 'quarter';
+
+export type ChannelReport = {
+  revenue?: number;
+  ads: number;
+  shipping: number;
+  returns: number;
+  netProfit: number;
+};
+
+export interface PeriodReport {
+  period: string;
+  periodType: ReportPeriodType;
+  periodLabel: string;
+  allegro: ChannelReport;
+  ebay: ChannelReport;
+  purchasesCost: number;
+  allegroProfit: number;
+  ebayProfit: number;
+}

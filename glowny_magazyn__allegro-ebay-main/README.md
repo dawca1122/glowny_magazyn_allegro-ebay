@@ -26,5 +26,6 @@ Set these in Vercel for this frontend (Production/Preview):
 - `VITE_API_ENDPOINT=https://allegro-warehouse-manager.vercel.app/api/warehouse-sync`
 - `VITE_SYNC_TOKEN=9f3c2b4a7e5d8c1f0a9b3e7d6c5a4b2f9e1d0c3b7a6f5e4d3c2b1a0f9e8d7c6`
 - Optional (real Supabase instead of mock): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+- Optional (raporty finansowe): `VITE_REPORTS_ENDPOINT` — endpoint zwracający miesięczne/kwartalne podsumowania Allegro/eBay. Front przekazuje query `periodType=month|quarter` i `period=YYYY-MM` lub `period=YYYY-Q#`.
 
 The target API (allegro-warehouse-manager.vercel.app) must use the same sync token (e.g., as `WAREHOUSE_SYNC_TOKEN`) so that requests from this app are authorized.

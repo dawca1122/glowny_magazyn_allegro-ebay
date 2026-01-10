@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Package, LogOut, Bell, Search, Plus, Database, CloudOff, TrendingUp, ShoppingBag, FileCheck } from 'lucide-react';
+import { LayoutDashboard, Package, LogOut, Bell, Search, Plus, Database, CloudOff, TrendingUp, ShoppingBag, FileCheck, BarChart3 } from 'lucide-react';
 import InventoryTable from './InventoryTable';
 import { inventoryService, isConfigured } from './supabaseClient';
-import { InventoryItem, SalesSummaryMap } from './types';
+import { InventoryItem, SalesSummaryMap, PeriodReport, ReportPeriodType, ChannelReport } from './types';
 import { salesService } from './salesService';
+import { reportsService } from './reportsService';
 
-type View = 'dashboard' | 'magazyn';
+type View = 'dashboard' | 'magazyn' | 'raporty';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('magazyn');
@@ -14,6 +15,14 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [salesSummary, setSalesSummary] = useState<SalesSummaryMap>({});
+  const [reportPeriodType, setReportPeriodType] = useState<ReportPeriodType>('month');
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [reportData, setReportData] = useState<PeriodReport | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [supabaseHealth, setSupabaseHealth] = useState<'disabled' | 'unknown' | 'ok' | 'error'>(isConfigured ? 'unknown' : 'disabled');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -52,6 +61,47 @@ const App: React.FC = () => {
     }
   };
 
+  const fetchReport = async (periodType: ReportPeriodType, period: string) => {
+    try {
+      setReportLoading(true);
+      setReportError(null);
+      const report = await reportsService.fetchReport(periodType, period);
+      setReportData(report);
+    } catch (err: any) {
+      console.error('[Reports] fetchReport failed', err);
+      setReportError(err?.message || 'Nie udało się pobrać raportu.');
+      setReportData(null);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const monthOptions = React.useMemo(() => {
+    const now = new Date();
+    const options: { value: string; label: string }[] = [];
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const monthNames = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
+      options.push({ value, label: `${monthNames[d.getMonth()]} ${d.getFullYear()}` });
+    }
+    return options;
+  }, []);
+
+  const quarterOptions = React.useMemo(() => {
+    const now = new Date();
+    const options: { value: string; label: string }[] = [];
+    for (let i = 0; i < 8; i++) {
+      const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+      d.setUTCMonth(d.getUTCMonth() - i * 3);
+      const year = d.getUTCFullYear();
+      const quarter = Math.floor(d.getUTCMonth() / 3) + 1;
+      const value = `${year}-Q${quarter}`;
+      options.push({ value, label: `${year} Q${quarter}` });
+    }
+    return options;
+  }, []);
+
   useEffect(() => {
     fetchItems();
     fetchSales();
@@ -68,6 +118,21 @@ const App: React.FC = () => {
     };
     checkConnection();
   }, []);
+
+  useEffect(() => {
+    if (reportPeriodType === 'quarter') {
+      const firstQuarter = quarterOptions[0]?.value;
+      if (firstQuarter && !selectedPeriod.includes('Q')) setSelectedPeriod(firstQuarter);
+    } else {
+      const firstMonth = monthOptions[0]?.value;
+      if (firstMonth && selectedPeriod.includes('Q')) setSelectedPeriod(firstMonth);
+    }
+  }, [reportPeriodType, monthOptions, quarterOptions, selectedPeriod]);
+
+  useEffect(() => {
+    if (currentView !== 'raporty') return;
+    fetchReport(reportPeriodType, selectedPeriod);
+  }, [currentView, reportPeriodType, selectedPeriod]);
 
   const showNotification = (message: string, type: 'success' | 'error') => {
     setNotification({ message, type });
@@ -150,6 +215,15 @@ const App: React.FC = () => {
             <Package className="w-5 h-5" />
             <span>Magazyn</span>
           </button>
+          <button 
+            onClick={() => setCurrentView('raporty')}
+            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-semibold ${
+              currentView === 'raporty' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <BarChart3 className="w-5 h-5" />
+            <span>Raporty</span>
+          </button>
         </nav>
 
         <div className="p-4 border-t border-slate-800">
@@ -224,7 +298,7 @@ const App: React.FC = () => {
                  <p className="text-slate-400 text-sm italic">Moduł analizy danych w przygotowaniu...</p>
               </div>
             </div>
-          ) : (
+          ) : currentView === 'magazyn' ? (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="flex justify-between items-end mb-10">
                 <div>
@@ -243,6 +317,71 @@ const App: React.FC = () => {
               <div className="bg-white rounded-[32px] shadow-2xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
                 <InventoryTable items={filteredItems} onRefresh={() => { fetchItems(); fetchSales(); }} onNotify={showNotification} sales={salesSummary} />
               </div>
+            </div>
+          ) : (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
+              <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                <div>
+                  <h1 className="text-4xl font-black text-slate-900 tracking-tight">Raporty finansowe</h1>
+                  <p className="text-slate-400 font-medium mt-2">Miesięczne i kwartalne podsumowania Allegro i eBay.</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex gap-2 bg-slate-100 rounded-2xl p-1">
+                    <button
+                      onClick={() => setReportPeriodType('month')}
+                      className={`px-3 py-1.5 rounded-xl text-sm font-semibold ${reportPeriodType === 'month' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500'}`}
+                    >
+                      Miesiąc
+                    </button>
+                    <button
+                      onClick={() => setReportPeriodType('quarter')}
+                      className={`px-3 py-1.5 rounded-xl text-sm font-semibold ${reportPeriodType === 'quarter' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500'}`}
+                    >
+                      Kwartał
+                    </button>
+                  </div>
+                  <select
+                    className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700"
+                    value={selectedPeriod}
+                    onChange={(e) => setSelectedPeriod(e.target.value)}
+                  >
+                    {(reportPeriodType === 'month' ? monthOptions : quarterOptions).map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => fetchReport(reportPeriodType, selectedPeriod)}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 shadow-lg shadow-indigo-500/30"
+                  >
+                    Odśwież
+                  </button>
+                </div>
+              </div>
+
+              <div className="text-sm text-slate-500 font-semibold">
+                Okres: {reportData?.periodLabel || (reportPeriodType === 'quarter' ? 'Kwartalny' : 'Miesięczny')}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <ChannelCard title="Allegro" accent="indigo" data={reportData?.allegro} loading={reportLoading} />
+                <ChannelCard title="eBay" accent="emerald" data={reportData?.ebay} loading={reportLoading} />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <SummaryCard label="Koszt zakupów" value={reportData?.purchasesCost ?? 0} tone="slate" loading={reportLoading} />
+                <SummaryCard label="Zysk Allegro" value={reportData?.allegroProfit ?? 0} tone="indigo" loading={reportLoading} />
+                <SummaryCard label="Zysk eBay" value={reportData?.ebayProfit ?? 0} tone="emerald" loading={reportLoading} />
+              </div>
+
+              {reportError && (
+                <div className="p-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-sm font-semibold">
+                  {reportError}
+                </div>
+              )}
+
+              {!reportLoading && !reportData && !reportError && (
+                <p className="text-slate-400 text-sm">Brak danych dla wybranego okresu.</p>
+              )}
             </div>
           )}
         </div>
@@ -376,6 +515,78 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+};
+
+const formatCurrency = (value: number) => `${value.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN`;
+
+const ChannelCard: React.FC<{ title: string; accent: 'indigo' | 'emerald'; data?: ChannelReport; loading: boolean }> = ({ title, accent, data, loading }) => {
+  const accentMap: Record<string, string> = {
+    indigo: 'bg-indigo-50 border-indigo-100 text-indigo-800',
+    emerald: 'bg-emerald-50 border-emerald-100 text-emerald-800',
+  };
+
+  return (
+    <div className="bg-white rounded-[24px] border border-slate-100 shadow-sm p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-black text-slate-900">{title}</h3>
+        <span className={`px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wide ${accentMap[accent]}`}>Kanał</span>
+      </div>
+      {loading ? (
+        <div className="animate-pulse space-y-2">
+          <div className="h-4 bg-slate-100 rounded"></div>
+          <div className="h-4 bg-slate-100 rounded"></div>
+          <div className="h-4 bg-slate-100 rounded"></div>
+          <div className="h-4 bg-slate-100 rounded"></div>
+        </div>
+      ) : data ? (
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="space-y-1">
+            <p className="text-slate-500 font-semibold">Reklamy</p>
+            <p className="text-slate-900 font-black text-lg">{formatCurrency(data.ads || 0)}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-slate-500 font-semibold">Wysyłki</p>
+            <p className="text-slate-900 font-black text-lg">{formatCurrency(data.shipping || 0)}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-slate-500 font-semibold">Zwroty</p>
+            <p className="text-slate-900 font-black text-lg">{formatCurrency(data.returns || 0)}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-slate-500 font-semibold">Czysty zysk</p>
+            <p className={`font-black text-lg ${data.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>{formatCurrency(data.netProfit || 0)}</p>
+          </div>
+          {typeof data.revenue === 'number' && (
+            <div className="col-span-2 space-y-1">
+              <p className="text-slate-500 font-semibold">Przychód</p>
+              <p className="text-slate-900 font-black text-lg">{formatCurrency(data.revenue || 0)}</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <p className="text-slate-400 text-sm">Brak danych.</p>
+      )}
+    </div>
+  );
+};
+
+const SummaryCard: React.FC<{ label: string; value: number; tone: 'slate' | 'indigo' | 'emerald'; loading: boolean }> = ({ label, value, tone, loading }) => {
+  const toneMap: Record<string, string> = {
+    slate: 'bg-slate-50 text-slate-900',
+    indigo: 'bg-indigo-50 text-indigo-900',
+    emerald: 'bg-emerald-50 text-emerald-900',
+  };
+  return (
+    <div className={`rounded-[20px] border border-slate-100 p-5 ${toneMap[tone]} shadow-sm`}
+    >
+      <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">{label}</p>
+      {loading ? (
+        <div className="mt-3 h-6 bg-white/60 rounded animate-pulse"></div>
+      ) : (
+        <p className="text-2xl font-black mt-2">{formatCurrency(value || 0)}</p>
       )}
     </div>
   );
