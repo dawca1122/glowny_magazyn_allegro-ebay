@@ -113,7 +113,16 @@ export const inventoryService = {
     // Supabase: usuń doc_status jeśli tabela go nie ma
     const { doc_status, ...dbPayload } = basePayload as any;
     const { data, error } = await supabase.from('inventory').insert([dbPayload]).select().single();
-    if (error) throw error;
+    if (error) {
+      console.error('[Supabase] insert failed', {
+        message: error.message,
+        details: (error as any)?.details,
+        hint: (error as any)?.hint,
+        code: (error as any)?.code,
+        dbPayload
+      });
+      throw new Error(error.message || 'Supabase insert error');
+    }
     return data as InventoryItem;
   },
 

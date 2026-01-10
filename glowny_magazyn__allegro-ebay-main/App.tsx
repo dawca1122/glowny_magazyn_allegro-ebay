@@ -91,9 +91,10 @@ const App: React.FC = () => {
       resetAddForm();
       setShowAddModal(false);
       fetchItems();
-    } catch (error) {
+    } catch (error: any) {
       console.error('[AddItem] createItem failed', error);
-      showNotification('Błąd podczas dodawania towaru.', 'error');
+      const msg = error?.message || 'Błąd podczas dodawania towaru.';
+      showNotification(msg, 'error');
     }
   };
 
