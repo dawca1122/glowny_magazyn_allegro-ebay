@@ -92,6 +92,26 @@ export const inventoryService = {
     return data;
   },
 
+  async createItem(item: Omit<InventoryItem, 'created_at'>): Promise<InventoryItem> {
+    const payload: InventoryItem = {
+      ...item,
+      document_status: item.document_status || item.doc_status || 'Oczekuje',
+      doc_status: item.doc_status || item.document_status || 'Oczekuje',
+      created_at: new Date().toISOString()
+    };
+
+    if (!supabase) {
+      const data = getMockData();
+      const next = [...data, payload];
+      saveMockData(next);
+      return payload;
+    }
+
+    const { data, error } = await supabase.from('inventory').insert([payload]).select().single();
+    if (error) throw error;
+    return data as InventoryItem;
+  },
+
   async subtractStock(sku: string, amount: number) {
     if (!supabase) {
       const data = getMockData();

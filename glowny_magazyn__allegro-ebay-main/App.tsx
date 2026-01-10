@@ -13,6 +13,18 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState({
+    name: '',
+    sku: '',
+    purchase_type: 'Faktura' as const,
+    document_type: 'Typ A' as const,
+    document_status: 'Oczekuje' as const,
+    item_cost: 0,
+    total_stock: 0,
+    allegro_price: 0,
+    ebay_price: 0,
+  });
 
   const fetchItems = async () => {
     try {
@@ -33,6 +45,40 @@ const App: React.FC = () => {
   const showNotification = (message: string, type: 'success' | 'error') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 5000);
+  };
+
+  const resetAddForm = () => {
+    setAddForm({
+      name: '',
+      sku: '',
+      purchase_type: 'Faktura',
+      document_type: 'Typ A',
+      document_status: 'Oczekuje',
+      item_cost: 0,
+      total_stock: 0,
+      allegro_price: 0,
+      ebay_price: 0,
+    });
+  };
+
+  const handleAddItem = async () => {
+    if (!addForm.name || !addForm.sku) {
+      showNotification('Nazwa i SKU są wymagane.', 'error');
+      return;
+    }
+
+    try {
+      await inventoryService.createItem({
+        ...addForm,
+        doc_status: addForm.document_status,
+      });
+      showNotification('Nowy towar został dodany.', 'success');
+      resetAddForm();
+      setShowAddModal(false);
+      fetchItems();
+    } catch (error) {
+      showNotification('Błąd podczas dodawania towaru.', 'error');
+    }
   };
 
   const totalProfit = items.reduce((acc, curr) => {
@@ -87,7 +133,10 @@ const App: React.FC = () => {
               <><CloudOff className="w-3.5 h-3.5" /> Demo Version</>
             )}
           </div>
-          <button className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-rose-400 transition-colors w-full group font-semibold">
+          <button 
+            onClick={() => showNotification('Wylogowano (mock).', 'success')}
+            className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-rose-400 transition-colors w-full group font-semibold"
+          >
             <LogOut className="w-5 h-5 transition-transform group-hover:-translate-x-1" />
             <span>Wyloguj</span>
           </button>
@@ -151,7 +200,10 @@ const App: React.FC = () => {
                   <h1 className="text-4xl font-black text-slate-900 tracking-tight">Magazyn Główny</h1>
                   <p className="text-slate-400 font-medium mt-2">Zarządzaj inventory i synchronizuj sprzedaż.</p>
                 </div>
-                <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-7 py-3.5 rounded-[20px] flex items-center gap-3 font-bold shadow-2xl shadow-indigo-500/30 transition-all hover:-translate-y-1 active:scale-95">
+                <button 
+                  onClick={() => setShowAddModal(true)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-7 py-3.5 rounded-[20px] flex items-center gap-3 font-bold shadow-2xl shadow-indigo-500/30 transition-all hover:-translate-y-1 active:scale-95"
+                >
                   <Plus className="w-5 h-5" />
                   Dodaj Towar
                 </button>
@@ -180,6 +232,118 @@ const App: React.FC = () => {
             <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">System Alert</p>
           </div>
           <button onClick={() => setNotification(null)} className="ml-6 text-slate-600 hover:text-white transition-colors">✕</button>
+        </div>
+      )}
+
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-[28px] shadow-2xl border border-slate-100 w-full max-w-2xl p-8 space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-black text-slate-900">Dodaj nowy towar</h3>
+              <button className="text-slate-400 hover:text-slate-700" onClick={() => { setShowAddModal(false); resetAddForm(); }}>✕</button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Nazwa</label>
+                <input 
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  value={addForm.name}
+                  onChange={(e) => setAddForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Nazwa produktu"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">SKU</label>
+                <input 
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  value={addForm.sku}
+                  onChange={(e) => setAddForm(prev => ({ ...prev, sku: e.target.value }))}
+                  placeholder="np. SW-V2-PRO-BLK"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Typ zakupu</label>
+                <select 
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  value={addForm.purchase_type}
+                  onChange={(e) => setAddForm(prev => ({ ...prev, purchase_type: e.target.value as any }))}
+                >
+                  <option value="Faktura">Faktura</option>
+                  <option value="Gotówka">Gotówka</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Typ dokumentu</label>
+                <select 
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  value={addForm.document_type}
+                  onChange={(e) => setAddForm(prev => ({ ...prev, document_type: e.target.value as any }))}
+                >
+                  <option value="Typ A">Typ A</option>
+                  <option value="Typ B">Typ B</option>
+                  <option value="Typ C">Typ C</option>
+                  <option value="Typ D">Typ D</option>
+                  <option value="Typ E">Typ E</option>
+                  <option value="Typ F">Typ F</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Koszt zakupu (PLN)</label>
+                <input 
+                  type="number"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  value={addForm.item_cost}
+                  onChange={(e) => setAddForm(prev => ({ ...prev, item_cost: parseFloat(e.target.value) || 0 }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Stan magazynu (szt)</label>
+                <input 
+                  type="number"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  value={addForm.total_stock}
+                  onChange={(e) => setAddForm(prev => ({ ...prev, total_stock: parseInt(e.target.value) || 0 }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Cena Allegro</label>
+                <input 
+                  type="number"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  value={addForm.allegro_price}
+                  onChange={(e) => setAddForm(prev => ({ ...prev, allegro_price: parseFloat(e.target.value) || 0 }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Cena eBay</label>
+                <input 
+                  type="number"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  value={addForm.ebay_price}
+                  onChange={(e) => setAddForm(prev => ({ ...prev, ebay_price: parseFloat(e.target.value) || 0 }))}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button 
+                onClick={() => { setShowAddModal(false); resetAddForm(); }}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-700"
+              >
+                Anuluj
+              </button>
+              <button 
+                onClick={handleAddItem}
+                className="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-500/30"
+              >
+                Zapisz towar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
