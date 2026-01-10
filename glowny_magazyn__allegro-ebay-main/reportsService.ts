@@ -45,6 +45,42 @@ const normalizeChannel = (raw: Partial<ChannelReport> | undefined): ChannelRepor
   netProfit: raw?.netProfit ?? 0,
 });
 
+const mockReport = (periodType: ReportPeriodType, period: string): PeriodReport => {
+  // Deterministyczny mock na potrzeby dev, gdy brak backendu
+  const seed = period.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const base = 10000 + (seed % 2000);
+  const allegroAds = 500 + (seed % 200);
+  const ebayAds = 350 + (seed % 150);
+  const allegroShipping = 800 + (seed % 180);
+  const ebayShipping = 650 + (seed % 160);
+  const allegroReturns = 200 + (seed % 80);
+  const ebayReturns = 180 + (seed % 70);
+  const purchasesCost = 6000 + (seed % 1200);
+
+  return {
+    period,
+    periodType,
+    periodLabel: formatPeriodLabel(periodType, period),
+    allegro: {
+      revenue: base + 1500,
+      ads: allegroAds,
+      shipping: allegroShipping,
+      returns: allegroReturns,
+      netProfit: base - allegroAds - allegroShipping - allegroReturns,
+    },
+    ebay: {
+      revenue: base,
+      ads: ebayAds,
+      shipping: ebayShipping,
+      returns: ebayReturns,
+      netProfit: base - ebayAds - ebayShipping - ebayReturns,
+    },
+    purchasesCost,
+    allegroProfit: base - allegroAds - allegroShipping - allegroReturns,
+    ebayProfit: base - ebayAds - ebayShipping - ebayReturns,
+  };
+};
+
 const normalizeReport = (raw: any, periodType: ReportPeriodType, period: string): PeriodReport => {
   return {
     period: raw?.period || period,
@@ -61,7 +97,8 @@ const normalizeReport = (raw: any, periodType: ReportPeriodType, period: string)
 export const reportsService = {
   async fetchReport(periodType: ReportPeriodType, period: string): Promise<PeriodReport> {
     if (!REPORTS_ENDPOINT) {
-      throw new Error('Brak VITE_REPORTS_ENDPOINT (raporty). Skonfiguruj backend, aby zwrócić realne dane.');
+      console.warn('[Reports] Brak VITE_REPORTS_ENDPOINT – używam mock danych dev. Ustaw backend, aby widzieć realne liczby.');
+      return mockReport(periodType, period);
     }
 
     const url = new URL(REPORTS_ENDPOINT);
