@@ -121,10 +121,12 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify }) => {
       return;
     }
 
+    const cleanSku = item.sku.replace(/^SKU:\s*/i, '').trim();
+
     setSyncingSku(item.sku);
     try {
       const payload: SyncPayload = {
-        items: [{ sku: item.sku, stock_warehouse: amount }]
+        items: [{ sku: cleanSku, stock_warehouse: amount }]
       };
 
       const response = await fetch(API_ENDPOINT, {
@@ -154,9 +156,9 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify }) => {
       if (summary?.updated >= 1) {
         const newStock = Math.max(0, item.total_stock - amount);
         await inventoryService.updateItem(item.sku, { total_stock: newStock });
-        onNotify(`Wysłano ${amount} szt. SKU ${item.sku}. API updated=${summary.updated}${summary.not_found ? `, not_found=${summary.not_found}` : ''}.`, 'success');
+        onNotify(`Wysłano ${amount} szt. SKU ${cleanSku}. API updated=${summary.updated}${summary.not_found ? `, not_found=${summary.not_found}` : ''}.`, 'success');
       } else {
-        onNotify(`Brak aktualizacji dla SKU ${item.sku}. Odpowiedź API: ${rawText}`, 'error');
+        onNotify(`Brak aktualizacji dla SKU ${cleanSku}. Odpowiedź API: ${rawText}`, 'error');
       }
 
       // wyczyść input po udanym wywołaniu niezależnie od parsowania
