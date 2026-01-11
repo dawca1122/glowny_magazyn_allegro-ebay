@@ -41,7 +41,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const period = (req.query.period as string) || new Date().toISOString().slice(0, 7);
 
   if (!supabaseService) {
-    return res.status(500).json({ error: 'Supabase not configured' });
+    const hasUrl = !!process.env.SUPABASE_URL;
+    const hasKey = !!process.env.SUPABASE_SERVICE_KEY;
+    console.error('[reports] Supabase not configured', { hasUrl, hasKey });
+    return res.status(500).json({ error: 'Supabase not configured', hasSupabaseUrl: hasUrl, hasSupabaseServiceKey: hasKey });
   }
 
   try {
@@ -71,7 +74,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json(response);
   } catch (err: any) {
-    console.error('[reports] error', err);
+    console.error('[reports] error', err, {
+      hasSupabaseUrl: !!process.env.SUPABASE_URL,
+      hasSupabaseServiceKey: !!process.env.SUPABASE_SERVICE_KEY,
+    });
     return res.status(500).json({ error: err?.message || 'Internal error' });
   }
 }
