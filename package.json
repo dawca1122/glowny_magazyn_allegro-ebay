@@ -1,0 +1,9 @@
+{
+  "name": "glowny-magazyn-allegro-ebay-root",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.90.1"
+  }
+}

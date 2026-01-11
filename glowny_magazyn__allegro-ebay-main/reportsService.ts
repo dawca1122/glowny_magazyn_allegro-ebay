@@ -23,7 +23,8 @@ const getEnvVar = (name: string): string => {
   return '';
 };
 
-const REPORTS_ENDPOINT = getEnvVar('VITE_REPORTS_ENDPOINT');
+// Prefer explicit env; fallback to same-origin API to avoid missing/incorrect URL issues
+const REPORTS_ENDPOINT = getEnvVar('VITE_REPORTS_ENDPOINT') || '/api/reports';
 
 const formatPeriodLabel = (periodType: ReportPeriodType, period: string): string => {
   if (periodType === 'quarter') {

@@ -1,6 +1,6 @@
 {
   "framework": "vite",
-  "installCommand": "cd glowny_magazyn__allegro-ebay-main && npm install",
+  "installCommand": "npm install && cd glowny_magazyn__allegro-ebay-main && npm install",
   "buildCommand": "cd glowny_magazyn__allegro-ebay-main && npm run build",
   "devCommand": "cd glowny_magazyn__allegro-ebay-main && npm run dev -- --host",
   "outputDirectory": "glowny_magazyn__allegro-ebay-main/dist"
