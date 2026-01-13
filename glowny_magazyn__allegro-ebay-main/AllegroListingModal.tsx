@@ -189,7 +189,7 @@ const AllegroListingModal: React.FC<Props> = ({ item, onClose, onNotify, onListe
 
           <div className="flex items-center justify-between gap-4">
             <div className="text-xs text-slate-500 font-semibold">
-              Ilość wystawiana zawsze = 5 szt. | Brak wyników → komunikat | Stan < 5 blokuje wystawienie
+              Ilość wystawiana zawsze = 5 szt. | Brak wyników → komunikat | Stan &lt; 5 blokuje wystawienie
             </div>
             <div className="flex gap-3">
               <button onClick={onClose} className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-800">Anuluj</button>

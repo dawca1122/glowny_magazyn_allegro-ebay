@@ -1,5 +1,7 @@
+/// <reference path="../types.d.ts" />
+/// <reference types="node" />
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import Busboy from 'busboy';
+import Busboy, { FileInfo } from 'busboy';
 import { readJsonBody, sendError } from '../lib/http';
 import { isValidEan, scanEanFromBase64 } from '../lib/geminiEanScanner';
 
@@ -8,9 +10,9 @@ const parseMultipartImage = (req: VercelRequest): Promise<{ base64: string; mime
     const bb = Busboy({ headers: req.headers });
     let resolved = false;
 
-    bb.on('file', (_, file, info) => {
+    bb.on('file', (_: string, file: NodeJS.ReadableStream, info: FileInfo) => {
       const chunks: Buffer[] = [];
-      file.on('data', (d) => chunks.push(d));
+      file.on('data', (d: Buffer) => chunks.push(d));
       file.on('end', () => {
         if (resolved) return;
         resolved = true;
@@ -19,12 +21,12 @@ const parseMultipartImage = (req: VercelRequest): Promise<{ base64: string; mime
       });
     });
 
-    bb.on('error', (err) => reject(err));
+    bb.on('error', (err: unknown) => reject(err));
     bb.on('finish', () => {
       if (!resolved) reject(new Error('No file found in multipart payload'));
     });
 
-    req.pipe(bb);
+    req.pipe(bb as unknown as NodeJS.WritableStream);
   });
 };
 

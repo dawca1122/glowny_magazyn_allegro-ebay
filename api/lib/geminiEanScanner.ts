@@ -1,3 +1,5 @@
+/// <reference path="../types.d.ts" />
+/// <reference types="node" />
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
 const env = (name: string) => process.env[name] || '';

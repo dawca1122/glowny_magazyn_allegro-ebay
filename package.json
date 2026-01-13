@@ -5,6 +5,11 @@
   "type": "module",
   "dependencies": {
     "@supabase/supabase-js": "^2.90.1",
+    "@vercel/node": "^3.0.21",
     "busboy": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/busboy": "^1.5.4",
+    "@types/node": "^22.14.0"
   }
 }
