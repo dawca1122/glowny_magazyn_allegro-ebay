@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
-import { Send, CheckCircle, Clock, RefreshCw, Package, FileDown, Save } from 'lucide-react';
+import { Send, CheckCircle, Clock, RefreshCw, Package, FileDown, Save, Upload } from 'lucide-react';
 import { DocumentStatus, InventoryItem, SyncPayload, SalesSummaryMap } from './types';
 import { inventoryService } from './supabaseClient';
+import AllegroListingModal from './AllegroListingModal';
 
 interface Props {
   items: InventoryItem[];
@@ -28,6 +29,7 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {
   const [updatingSku, setUpdatingSku] = useState<string | null>(null);
   const [stockInputs, setStockInputs] = useState<Record<string, { allegro: number; ebay: number }>>({});
   const [docStatusOverrides, setDocStatusOverrides] = useState<Record<string, DocumentStatus>>({});
+  const [listingItem, setListingItem] = useState<InventoryItem | null>(null);
   
   // itemEdits przechowuje wszystkie tymczasowe zmiany w wierszu przed zapisem
   const [itemEdits, setItemEdits] = useState<Record<string, Partial<Record<keyof InventoryItem, string>>>>({});
@@ -300,6 +302,18 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {
 
                 <td className="px-6 py-6">
                   <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setListingItem(item)}
+                      disabled={item.total_stock < 5}
+                      className={`px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all ${
+                        item.total_stock < 5
+                          ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
+                          : 'bg-white border-indigo-200 text-indigo-700 hover:-translate-y-0.5 hover:shadow-md'
+                      }`}
+                    >
+                      <Upload className="w-4 h-4" />
+                      Wystaw na Allegro
+                    </button>
                     <input 
                       type="number" 
                       placeholder="0"
@@ -428,6 +442,18 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {
           </div>
           <p className="text-lg font-black text-slate-300">Magazyn jest obecnie pusty.</p>
         </div>
+      )}
+
+      {listingItem && (
+        <AllegroListingModal
+          item={listingItem}
+          onClose={() => setListingItem(null)}
+          onNotify={onNotify}
+          onListed={() => {
+            setListingItem(null);
+            onRefresh();
+          }}
+        />
       )}
     </div>
   );

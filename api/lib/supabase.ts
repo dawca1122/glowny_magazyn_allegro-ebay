@@ -5,14 +5,15 @@ const getEnv = (name: string): string => {
 };
 
 const SUPABASE_URL = getEnv('SUPABASE_URL');
-const SUPABASE_SERVICE_KEY = getEnv('SUPABASE_SERVICE_KEY');
+// Prefer service role key; keep backward-compat with previous SERVICE_KEY naming
+const SUPABASE_SERVICE_ROLE_KEY = getEnv('SUPABASE_SERVICE_ROLE_KEY') || getEnv('SUPABASE_SERVICE_KEY');
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-  console.warn('[Supabase] Missing SUPABASE_URL or SUPABASE_SERVICE_KEY envs.');
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  console.warn('[Supabase] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY envs.');
 }
 
-export const supabaseService = SUPABASE_URL && SUPABASE_SERVICE_KEY
-  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+export const supabaseService = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
   : null;

@@ -54,3 +54,18 @@ export interface PeriodReport {
   allegroProfit: number;
   ebayProfit: number;
 }
+
+export type AllegroCatalogItem = {
+  productId: string;
+  title: string;
+  mainImageUrl?: string;
+  images?: string[];
+  categoryId?: string;
+  score: number;
+  reason: string[];
+};
+
+export type AllegroSearchResponse = {
+  ean: string;
+  top3: AllegroCatalogItem[];
+};
