@@ -1,4 +1,4 @@
-import { AllegroProductDetail } from './allegroClient';
+import { AllegroProductDetail } from './allegroClient.js';
 
 export type RankedProduct = {
   productId: string;

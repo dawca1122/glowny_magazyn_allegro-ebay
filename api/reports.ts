@@ -1,6 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { supabaseService } from './lib/supabase';
-import { ReportPeriodType, PeriodReport, ChannelReport } from '../glowny_magazyn__allegro-ebay-main/types';
+import { supabaseService } from './lib/supabase.js';
+import { ReportPeriodType, PeriodReport, ChannelReport } from '../glowny_magazyn__allegro-ebay-main/types.js';
 
 const parsePeriod = (periodType: ReportPeriodType, period: string): { from: string; to: string } => {
   if (periodType === 'quarter') {

@@ -1,6 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { refreshToken, fetchCheckoutForms } from './lib/allegro';
-import { supabaseService } from './lib/supabase';
+import { refreshToken, fetchCheckoutForms } from './lib/allegro.js';
+import { supabaseService } from './lib/supabase.js';
 
 const parseAmount = (v: any): number => {
   if (typeof v === 'number') return v;

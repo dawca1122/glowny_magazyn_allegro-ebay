@@ -1,6 +1,6 @@
 /// <reference path="../types.d.ts" />
 /// <reference types="node" />
-import { supabaseService } from './supabase';
+import { supabaseService } from './supabase.js';
 
 const ALLEGRO_API_URL = 'https://api.allegro.pl';
 const ALLEGRO_AUTH_URL = 'https://allegro.pl/auth/oauth/token';

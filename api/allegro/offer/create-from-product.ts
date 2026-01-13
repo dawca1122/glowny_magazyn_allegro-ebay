@@ -1,9 +1,9 @@
 /// <reference path="../../types.d.ts" />
 /// <reference types="node" />
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { readJsonBody, sendError } from '../../lib/http';
-import { supabaseService } from '../../lib/supabase';
-import { createOfferFromProduct } from '../../lib/allegroClient';
+import { readJsonBody, sendError } from '../../lib/http.js';
+import { supabaseService } from '../../lib/supabase.js';
+import { createOfferFromProduct } from '../../lib/allegroClient.js';
 
 const INVENTORY_TABLE = 'inventory';
 const LOG_TABLE = 'allegro_listings_log';

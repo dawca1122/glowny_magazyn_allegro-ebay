@@ -1,11 +1,11 @@
 /// <reference path="../../types.d.ts" />
 /// <reference types="node" />
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { readJsonBody, sendError } from '../../lib/http';
-import { supabaseService } from '../../lib/supabase';
-import { fetchProductDetail, searchProductsByEan, AllegroProductDetail } from '../../lib/allegroClient';
-import { rankProducts } from '../../lib/catalogRanking';
-import { isValidEan } from '../../lib/geminiEanScanner';
+import { readJsonBody, sendError } from '../../lib/http.js';
+import { supabaseService } from '../../lib/supabase.js';
+import { fetchProductDetail, searchProductsByEan, AllegroProductDetail } from '../../lib/allegroClient.js';
+import { rankProducts } from '../../lib/catalogRanking.js';
+import { isValidEan } from '../../lib/geminiEanScanner.js';
 
 const CACHE_TABLE = 'allegro_product_cache';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;

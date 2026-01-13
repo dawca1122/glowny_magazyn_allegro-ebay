@@ -2,8 +2,8 @@
 /// <reference types="node" />
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import Busboy, { FileInfo } from 'busboy';
-import { readJsonBody, sendError } from '../lib/http';
-import { isValidEan, scanEanFromBase64 } from '../lib/geminiEanScanner';
+import { readJsonBody, sendError } from '../lib/http.js';
+import { isValidEan, scanEanFromBase64 } from '../lib/geminiEanScanner.js';
 
 const parseMultipartImage = (req: VercelRequest): Promise<{ base64: string; mime?: string }> => {
   return new Promise((resolve, reject) => {
