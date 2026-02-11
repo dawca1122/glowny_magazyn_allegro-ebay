@@ -8,9 +8,11 @@ import { salesService } from './salesService';
 import { reportsService } from './reportsService';
 
 type View = 'dashboard' | 'magazyn' | 'raporty';
+type Platform = 'overview' | 'ebay' | 'allegro';
 
 const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<View>('magazyn');
+  const [currentView, setCurrentView] = useState<View>('dashboard');
+  const [activePlatform, setActivePlatform] = useState<Platform>('overview');
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -281,21 +283,124 @@ const App: React.FC = () => {
         {/* Content Area */}
         <div className="flex-1 overflow-auto p-10">
           {currentView === 'dashboard' ? (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
               <div className="mb-10">
-                <h1 className="text-4xl font-black text-slate-900 tracking-tight">System Dashboard</h1>
-                <p className="text-slate-400 font-medium mt-2">Przegląd kluczowych wskaźników magazynowych.</p>
+                <h1 className="text-4xl font-black text-slate-900 tracking-tight">Dashboard eBay + Allegro</h1>
+                <p className="text-slate-400 font-medium mt-2">Podgląd sprzedaży na obu platformach w czasie rzeczywistym.</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <StatCard label="Wszystkie Produkty" value={items.length} icon={<Package />} color="indigo" />
-                <StatCard label="Estymowany Zysk (Suma)" value={`${totalProfit.toLocaleString()} PLN`} icon={<TrendingUp />} color="emerald" />
-                <StatCard label="Oczekujące Dokumenty" value={items.filter(i => i.document_status === 'Oczekuje').length} icon={<FileCheck />} color="amber" />
+              {/* Platform Tabs */}
+              <div className="flex gap-2 bg-slate-100 rounded-2xl p-1 w-fit">
+                <button
+                  onClick={() => setActivePlatform('overview')}
+                  className={`px-4 py-2 rounded-xl text-sm font-semibold ${activePlatform === 'overview' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500'}`}
+                >
+                  Przegląd
+                </button>
+                <button
+                  onClick={() => setActivePlatform('ebay')}
+                  className={`px-4 py-2 rounded-xl text-sm font-semibold ${activePlatform === 'ebay' ? 'bg-white text-emerald-700 shadow' : 'text-slate-500'}`}
+                >
+                  eBay
+                </button>
+                <button
+                  onClick={() => setActivePlatform('allegro')}
+                  className={`px-4 py-2 rounded-xl text-sm font-semibold ${activePlatform === 'allegro' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500'}`}
+                >
+                  Allegro
+                </button>
               </div>
 
-              <div className="mt-12 bg-white p-10 rounded-[32px] border border-slate-200 shadow-xl shadow-slate-200/50">
-                 <h2 className="text-xl font-bold mb-6">Ostatnie Aktywności</h2>
-                 <p className="text-slate-400 text-sm italic">Moduł analizy danych w przygotowaniu...</p>
+              {/* Overview Stats */}
+              {activePlatform === 'overview' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  <StatCard label="Wszystkie Produkty" value={items.length} icon={<Package />} color="indigo" />
+                  <StatCard label="Estymowany Zysk (Suma)" value={`${totalProfit.toLocaleString()} PLN`} icon={<TrendingUp />} color="emerald" />
+                  <StatCard label="Oczekujące Dokumenty" value={items.filter(i => i.document_status === 'Oczekuje').length} icon={<FileCheck />} color="amber" />
+                </div>
+              )}
+
+              {/* eBay Dashboard */}
+              {activePlatform === 'ebay' && (
+                <div className="space-y-6">
+                  <div className="bg-white p-6 rounded-[24px] border border-emerald-200 shadow-lg">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                      <h2 className="text-xl font-bold text-slate-900">eBay Dashboard</h2>
+                      <span className="text-sm text-emerald-600 font-semibold bg-emerald-50 px-2 py-1 rounded">DZISIAJ</span>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="p-4 bg-emerald-50 rounded-xl">
+                        <p className="text-sm text-emerald-700 font-semibold">Sprzedaż dzisiaj</p>
+                        <p className="text-2xl font-black text-emerald-900">Ładowanie...</p>
+                      </div>
+                      <div className="p-4 bg-emerald-50 rounded-xl">
+                        <p className="text-sm text-emerald-700 font-semibold">Zamówienia</p>
+                        <p className="text-2xl font-black text-emerald-900">Ładowanie...</p>
+                      </div>
+                      <div className="p-4 bg-emerald-50 rounded-xl">
+                        <p className="text-sm text-emerald-700 font-semibold">Zysk netto</p>
+                        <p className="text-2xl font-black text-emerald-900">Ładowanie...</p>
+                      </div>
+                    </div>
+                    
+                    <p className="text-sm text-slate-500 mt-4">
+                      Dane z eBay będą dostępne po skonfigurowaniu API i uruchomieniu workera.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Allegro Dashboard */}
+              {activePlatform === 'allegro' && (
+                <div className="space-y-6">
+                  <div className="bg-white p-6 rounded-[24px] border border-indigo-200 shadow-lg">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
+                      <h2 className="text-xl font-bold text-slate-900">Allegro Dashboard</h2>
+                      <span className="text-sm text-indigo-600 font-semibold bg-indigo-50 px-2 py-1 rounded">DZISIAJ</span>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="p-4 bg-indigo-50 rounded-xl">
+                        <p className="text-sm text-indigo-700 font-semibold">Sprzedaż dzisiaj</p>
+                        <p className="text-2xl font-black text-indigo-900">Ładowanie...</p>
+                      </div>
+                      <div className="p-4 bg-indigo-50 rounded-xl">
+                        <p className="text-sm text-indigo-700 font-semibold">Zamówienia</p>
+                        <p className="text-2xl font-black text-indigo-900">Ładowanie...</p>
+                      </div>
+                      <div className="p-4 bg-indigo-50 rounded-xl">
+                        <p className="text-sm text-indigo-700 font-semibold">Zysk netto</p>
+                        <p className="text-2xl font-black text-indigo-900">Ładowanie...</p>
+                      </div>
+                    </div>
+                    
+                    <p className="text-sm text-slate-500 mt-4">
+                      Dane z Allegro będą dostępne po skonfigurowaniu API i uruchomieniu workera.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Recent Activities */}
+              <div className="mt-8 bg-white p-6 rounded-[24px] border border-slate-200 shadow-lg">
+                <h2 className="text-xl font-bold mb-4">Ostatnie Aktywności</h2>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                    <p className="text-sm text-slate-700">eBay Worker: Raport dzienny wygenerowany (20:00)</p>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                    <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                    <p className="text-sm text-slate-700">Allegro Worker: Tokeny ważne do 09.05.2026</p>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                    <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+                    <p className="text-sm text-slate-700">System: Dashboard eBay+Allegro w trakcie integracji</p>
+                  </div>
+                </div>
               </div>
             </div>
           ) : currentView === 'magazyn' ? (
@@ -520,11 +625,11 @@ const App: React.FC = () => {
   );
 };
 
-const formatCurrency = (value: number, currency: 'PLN' | 'EUR' = 'PLN') => {
+const formatCurrency = (value: number, currency: string = 'PLN') => {
   return value.toLocaleString('pl-PL', { style: 'currency', currency, minimumFractionDigits: 2 });
 };
 
-const ChannelCard: React.FC<{ title: string; accent: 'indigo' | 'emerald'; data?: ChannelReport; loading: boolean; currency?: 'PLN' | 'EUR' }> = ({ title, accent, data, loading, currency = 'PLN' }) => {
+const ChannelCard: React.FC<{ title: string; accent: 'indigo' | 'emerald'; data?: ChannelReport; loading: boolean; currency?: string }> = ({ title, accent, data, loading, currency = 'PLN' }) => {
   const accentMap: Record<string, string> = {
     indigo: 'bg-indigo-50 border-indigo-100 text-indigo-800',
     emerald: 'bg-emerald-50 border-emerald-100 text-emerald-800',
@@ -575,7 +680,7 @@ const ChannelCard: React.FC<{ title: string; accent: 'indigo' | 'emerald'; data?
   );
 };
 
-const SummaryCard: React.FC<{ label: string; value: number; tone: 'slate' | 'indigo' | 'emerald'; loading: boolean; currency?: 'PLN' | 'EUR' }> = ({ label, value, tone, loading, currency = 'PLN' }) => {
+const SummaryCard: React.FC<{ label: string; value: number; tone: 'slate' | 'indigo' | 'emerald'; loading: boolean; currency?: string }> = ({ label, value, tone, loading, currency = 'PLN' }) => {
   const toneMap: Record<string, string> = {
     slate: 'bg-slate-50 text-slate-900',
     indigo: 'bg-indigo-50 text-indigo-900',

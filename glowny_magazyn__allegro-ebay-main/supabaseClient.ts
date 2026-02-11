@@ -33,27 +33,27 @@ const getMockData = (): InventoryItem[] => {
   
   const initial: InventoryItem[] = [
     {
-      name: 'Smartwatch V2 Pro',
-      sku: 'SW-V2-PRO-BLK',
+      name: '[TWÓJ PRODUKT 1]',
+      sku: 'PROD-001',
       purchase_type: 'Faktura',
       document_type: 'Typ A',
       document_status: 'Oczekuje',
-      item_cost: 150.00,
-      total_stock: 45,
-      allegro_price: 249.00,
-      ebay_price: 289.00,
+      item_cost: 0,
+      total_stock: 0,
+      allegro_price: 0,
+      ebay_price: 0,
       created_at: new Date().toISOString()
     },
     {
-      name: 'Słuchawki Bezprzewodowe',
-      sku: 'EAR-H1-WHITE',
+      name: '[TWÓJ PRODUKT 2]',
+      sku: 'PROD-002',
       purchase_type: 'Gotówka',
       document_type: 'Typ B',
       document_status: 'Pobrano',
-      item_cost: 85.00,
-      total_stock: 3,
-      allegro_price: 159.00,
-      ebay_price: 179.00,
+      item_cost: 0,
+      total_stock: 0,
+      allegro_price: 0,
+      ebay_price: 0,
       created_at: new Date().toISOString()
     }
   ];
