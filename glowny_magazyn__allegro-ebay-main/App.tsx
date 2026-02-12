@@ -6,6 +6,7 @@ import { inventoryService, isConfigured } from './supabaseClient';
 import { InventoryItem, SalesSummaryMap, PeriodReport, ReportPeriodType, ChannelReport } from './types';
 import { salesService } from './salesService';
 import { reportsService } from './reportsService';
+import { apiEndpoints } from './apiConfig';
 
 type View = 'dashboard' | 'magazyn' | 'raporty' | 'wykresy';
 type Platform = 'overview' | 'ebay' | 'allegro';
@@ -104,7 +105,7 @@ const App: React.FC = () => {
   const fetchSales = async () => {
     try {
       // Spróbuj pobrać z API
-      const response = await fetch('http://localhost:3001/api/sales-summary');
+      const response = await fetch(apiEndpoints.salesSummary);
       if (response.ok) {
         const apiSummary = await response.json();
         setNetProfit(apiSummary);
@@ -173,21 +174,21 @@ const App: React.FC = () => {
       setChartLoading(true);
       
       // Pobierz dane liniowe
-      const chartResponse = await fetch(`http://localhost:3001/api/chart-data?period=${chartPeriod}&platform=${chartPlatform}`);
+      const chartResponse = await fetch(apiEndpoints.chartData(chartPeriod, chartPlatform));
       const chartResult = await chartResponse.json();
       if (chartResult.success) {
         setChartData(chartResult);
       }
       
       // Pobierz dane miesięczne
-      const monthlyResponse = await fetch('http://localhost:3001/api/monthly-chart-data?months=6');
+      const monthlyResponse = await fetch(apiEndpoints.monthlyChartData(6));
       const monthlyResult = await monthlyResponse.json();
       if (monthlyResult.success) {
         setMonthlyChartData(monthlyResult);
       }
       
       // Pobierz statystyki platform
-      const statsResponse = await fetch('http://localhost:3001/api/platform-stats');
+      const statsResponse = await fetch(apiEndpoints.platformStats);
       const statsResult = await statsResponse.json();
       if (statsResult.success) {
         setPlatformStats(statsResult);
@@ -232,7 +233,7 @@ const App: React.FC = () => {
       };
       
       // Wysłanie danych do lokalnego API
-      const response = await fetch('http://localhost:3001/api/export-to-sheets', {
+      const response = await fetch(apiEndpoints.exportToSheets, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reportData)
@@ -261,7 +262,7 @@ const App: React.FC = () => {
       setDailySalesLoading(true);
       
       // Pobierz dane z lokalnego API
-      const response = await fetch('http://localhost:3001/api/daily-sales');
+      const response = await fetch(apiEndpoints.dailySales);
       
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
