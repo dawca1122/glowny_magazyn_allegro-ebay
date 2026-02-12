@@ -1,13 +1,37 @@
 /**
  * Chart Data API endpoint
  * GET /api/chart-data?period=7d|30d|90d&platform=all|ebay|allegro
+ * Pobiera dane z Dzidka lub zwraca puste dane
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export const runtime = 'nodejs';
 
-function generateChartData(days: number, platform: string) {
+const DZIDEK_URL = 'https://api.dzidek.de';
+
+async function fetchFromDzidek(days: number, platform: string): Promise<any[] | null> {
+  try {
+    const response = await fetch(`${DZIDEK_URL}/api/chart-data?days=${days}&platform=${platform}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    if (data.success && data.data) {
+      return data.data;
+    }
+    return null;
+  } catch (error) {
+    console.log('[chart-data] Dzidek unavailable');
+    return null;
+  }
+}
+
+function getEmptyChartData(days: number) {
   const data: Array<{ date: string; ebay: number; allegro: number }> = [];
   const today = new Date();
 
@@ -16,14 +40,10 @@ function generateChartData(days: number, platform: string) {
     date.setDate(date.getDate() - i);
     const dateStr = date.toISOString().split('T')[0];
 
-    // Generate realistic mock data with some variation
-    const baseEbay = 800 + Math.random() * 400;
-    const baseAllegro = 400 + Math.random() * 200;
-
     data.push({
       date: dateStr,
-      ebay: platform === 'allegro' ? 0 : Math.round(baseEbay * 100) / 100,
-      allegro: platform === 'ebay' ? 0 : Math.round(baseAllegro * 100) / 100
+      ebay: 0,
+      allegro: 0
     });
   }
 
@@ -48,13 +68,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     const days = periodDays[period as string] || 30;
-    const chartData = generateChartData(days, platform as string);
+    
+    // Spróbuj pobrać z Dzidka
+    const dzidekData = await fetchFromDzidek(days, platform as string);
+    
+    if (dzidekData && dzidekData.length > 0) {
+      return res.status(200).json({
+        success: true,
+        period,
+        platform,
+        data: dzidekData,
+        source: 'dzidek',
+        timestamp: new Date().toISOString()
+      });
+    }
 
+    // Brak danych - zwróć puste
     return res.status(200).json({
       success: true,
       period,
       platform,
-      data: chartData,
+      data: getEmptyChartData(days),
+      source: 'no-data',
+      message: 'Brak danych historycznych - połącz z Dzidkiem',
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {

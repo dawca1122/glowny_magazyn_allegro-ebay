@@ -1,32 +1,50 @@
 /**
  * Monthly Chart Data API endpoint
  * GET /api/monthly-chart-data?months=6
+ * Zwraca puste dane (brak historycznych danych miesięcznych)
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export const runtime = 'nodejs';
 
-function generateMonthlyData(months: number) {
+const DZIDEK_URL = 'https://api.dzidek.de';
+
+async function fetchFromDzidek(months: number): Promise<any[] | null> {
+  try {
+    const response = await fetch(`${DZIDEK_URL}/api/monthly-chart-data?months=${months}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    if (data.success && data.data) {
+      return data.data;
+    }
+    return null;
+  } catch (error) {
+    console.log('[monthly-chart-data] Dzidek unavailable');
+    return null;
+  }
+}
+
+function getEmptyMonthlyData(months: number) {
   const data: Array<{ month: string; ebay: number; allegro: number; total: number }> = [];
   const today = new Date();
 
   for (let i = months - 1; i >= 0; i--) {
     const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
-    const monthStr = date.toISOString().slice(0, 7); // YYYY-MM
-
     const monthNames = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru'];
     const label = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
 
-    // Generate realistic mock data
-    const ebay = 20000 + Math.random() * 10000;
-    const allegro = 10000 + Math.random() * 5000;
-
     data.push({
       month: label,
-      ebay: Math.round(ebay * 100) / 100,
-      allegro: Math.round(allegro * 100) / 100,
-      total: Math.round((ebay + allegro) * 100) / 100
+      ebay: 0,
+      allegro: 0,
+      total: 0
     });
   }
 
@@ -45,12 +63,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { months = '6' } = req.query;
     const monthCount = parseInt(months as string, 10) || 6;
 
-    const chartData = generateMonthlyData(monthCount);
+    // Spróbuj pobrać z Dzidka
+    const dzidekData = await fetchFromDzidek(monthCount);
+    
+    if (dzidekData && dzidekData.length > 0) {
+      return res.status(200).json({
+        success: true,
+        months: monthCount,
+        data: dzidekData,
+        source: 'dzidek',
+        timestamp: new Date().toISOString()
+      });
+    }
 
+    // Brak danych - zwróć puste
     return res.status(200).json({
       success: true,
       months: monthCount,
-      data: chartData,
+      data: getEmptyMonthlyData(monthCount),
+      source: 'no-data',
+      message: 'Brak danych historycznych - połącz z Dzidkiem',
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {

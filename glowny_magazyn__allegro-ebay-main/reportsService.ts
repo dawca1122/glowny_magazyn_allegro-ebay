@@ -46,39 +46,29 @@ const normalizeChannel = (raw: Partial<ChannelReport> | undefined): ChannelRepor
   netProfit: raw?.netProfit ?? 0,
 });
 
-const mockReport = (periodType: ReportPeriodType, period: string): PeriodReport => {
-  // Deterministyczny mock na potrzeby dev, gdy brak backendu
-  const seed = period.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  const base = 10000 + (seed % 2000);
-  const allegroAds = 500 + (seed % 200);
-  const ebayAds = 350 + (seed % 150);
-  const allegroShipping = 800 + (seed % 180);
-  const ebayShipping = 650 + (seed % 160);
-  const allegroReturns = 200 + (seed % 80);
-  const ebayReturns = 180 + (seed % 70);
-  const purchasesCost = 6000 + (seed % 1200);
-
+const emptyReport = (periodType: ReportPeriodType, period: string): PeriodReport => {
+  // Zwróć puste dane gdy brak backendu
   return {
     period,
     periodType,
     periodLabel: formatPeriodLabel(periodType, period),
     allegro: {
-      revenue: base + 1500,
-      ads: allegroAds,
-      shipping: allegroShipping,
-      returns: allegroReturns,
-      netProfit: base - allegroAds - allegroShipping - allegroReturns,
+      revenue: 0,
+      ads: 0,
+      shipping: 0,
+      returns: 0,
+      netProfit: 0,
     },
     ebay: {
-      revenue: base,
-      ads: ebayAds,
-      shipping: ebayShipping,
-      returns: ebayReturns,
-      netProfit: base - ebayAds - ebayShipping - ebayReturns,
+      revenue: 0,
+      ads: 0,
+      shipping: 0,
+      returns: 0,
+      netProfit: 0,
     },
-    purchasesCost,
-    allegroProfit: base - allegroAds - allegroShipping - allegroReturns,
-    ebayProfit: base - ebayAds - ebayShipping - ebayReturns,
+    purchasesCost: 0,
+    allegroProfit: 0,
+    ebayProfit: 0,
   };
 };
 
@@ -98,8 +88,8 @@ const normalizeReport = (raw: any, periodType: ReportPeriodType, period: string)
 export const reportsService = {
   async fetchReport(periodType: ReportPeriodType, period: string): Promise<PeriodReport> {
     if (!REPORTS_ENDPOINT) {
-      console.warn('[Reports] Brak VITE_REPORTS_ENDPOINT – używam mock danych dev. Ustaw backend, aby widzieć realne liczby.');
-      return mockReport(periodType, period);
+      console.warn('[Reports] Brak VITE_REPORTS_ENDPOINT – brak danych. Ustaw backend, aby widzieć realne liczby.');
+      return emptyReport(periodType, period);
     }
 
     const url = new URL(REPORTS_ENDPOINT);

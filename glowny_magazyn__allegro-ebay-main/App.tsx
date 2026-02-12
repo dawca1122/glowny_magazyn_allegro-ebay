@@ -76,15 +76,15 @@ const App: React.FC = () => {
     };
   }>({
     daily: {
-      revenue: { ebay: 2450.75, allegro: 1240.15 },
-      costs: { products: 922.73, fees: 417.81, taxes: 369.10 },
-      net: { ebay: 1850.50, allegro: 930.00 }
+      revenue: { ebay: 0, allegro: 0 },
+      costs: { products: 0, fees: 0, taxes: 0 },
+      net: { ebay: 0, allegro: 0 }
     },
     monthly: {
-      revenue: { ebay: 24574.75, allegro: 12401.50 },
-      costs: { products: 9244.07, fees: 4186.84, taxes: 3697.63 },
-      net: { ebay: 12779.86, allegro: 7068.85 },
-      dailyAverage: 662.00
+      revenue: { ebay: 0, allegro: 0 },
+      costs: { products: 0, fees: 0, taxes: 0 },
+      net: { ebay: 0, allegro: 0 },
+      dailyAverage: 0
     }
   });
 
@@ -335,28 +335,12 @@ const App: React.FC = () => {
       }
       
     } catch (error) {
-      console.warn('[DailySales] All sources unavailable, using fallback:', error);
+      console.warn('[DailySales] All sources unavailable:', error);
       
-      // Fallback na mock danych
-      const allegroSales = [
-        { productName: 'iPhone 15 Pro Max 256GB', soldToday: 3 },
-        { productName: 'Samsung Galaxy S24 Ultra', soldToday: 2 },
-        { productName: 'AirPods Pro 2', soldToday: 5 },
-        { productName: 'MacBook Air M3', soldToday: 1 },
-        { productName: 'Apple Watch Series 9', soldToday: 4 }
-      ];
-      
-      const ebaySales = [
-        { productName: 'Sony PlayStation 5', soldToday: 2 },
-        { productName: 'Xbox Series X', soldToday: 1 },
-        { productName: 'Nintendo Switch OLED', soldToday: 3 },
-        { productName: 'RTX 4090 Gaming PC', soldToday: 1 },
-        { productName: 'Gaming Monitor 27" 4K', soldToday: 2 }
-      ];
-      
+      // Brak danych - pokaż pustą listę
       setDailySalesDropdown({
-        allegro: allegroSales,
-        ebay: ebaySales
+        allegro: [],
+        ebay: []
       });
     } finally {
       setDailySalesLoading(false);

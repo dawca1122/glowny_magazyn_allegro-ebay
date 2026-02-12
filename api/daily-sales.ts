@@ -1,7 +1,7 @@
 /**
  * Daily Sales API endpoint
  * GET /api/daily-sales
- * Pobiera dane z Dzidka, fallback na mock jeśli niedostępny
+ * Pobiera dane z Dzidka - NIE używa mock danych
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -13,7 +13,8 @@ const REQUEST_TIMEOUT = 15000;
 
 async function fetchFromDzidek(): Promise<any | null> {
   try {
-    const response = await fetch(`${DZIDEK_URL}/api/warehouse/daily-sales`, {
+    // Główny endpoint Dzidka
+    const response = await fetch(`${DZIDEK_URL}/api/app-data`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT),
@@ -22,38 +23,53 @@ async function fetchFromDzidek(): Promise<any | null> {
     if (!response.ok) return null;
     
     const data = await response.json();
-    if (data.success && data.data) {
-      return data.data;
+    console.log('[daily-sales] Dzidek response:', JSON.stringify(data).slice(0, 200));
+    
+    // Przekształć dane z Dzidka do formatu daily-sales
+    if (data.summary) {
+      const allegroProducts = Object.entries(data.summary).map(([name, info]: [string, any]) => ({
+        productName: name,
+        soldToday: info.soldQty || 0,
+        revenue: info.gross || 0
+      }));
+      
+      return {
+        date: new Date().toISOString().split('T')[0],
+        allegro: allegroProducts,
+        ebay: [], // eBay dane przyjdą od eBay workera
+        totals: {
+          allegro: { 
+            items: allegroProducts.reduce((sum, p) => sum + p.soldToday, 0),
+            revenue: allegroProducts.reduce((sum, p) => sum + p.revenue, 0),
+            currency: 'PLN'
+          },
+          ebay: { items: 0, revenue: 0, currency: 'EUR' }
+        },
+        source: 'dzidek',
+        timestamp: data.timestamp || new Date().toISOString()
+      };
     }
-    return null;
+    
+    return data;
   } catch (error) {
-    console.log('[daily-sales] Dzidek unavailable, using mock data');
+    console.log('[daily-sales] Dzidek unavailable:', error);
     return null;
   }
 }
 
-function getMockData() {
+function getEmptyData() {
   const today = new Date().toISOString().split('T')[0];
   
   return {
     date: today,
-    allegro: [
-      { productName: 'PROFESJONALNA Frezarka NEONAIL 12W Ręczna Mini Manicure', soldToday: 1, revenue: 159.99 },
-      { productName: 'NEONAIL Nail Cleaner do naturalnej płytki paznokcia', soldToday: 1, revenue: 26.49 },
-      { productName: 'NeoNail Hard Top 7,2 ml – wykończenie hybrydy', soldToday: 1, revenue: 47.82 },
-      { productName: 'Blaszka NeoNail Plate For Stamps 12 srebrna', soldToday: 1, revenue: 50.36 },
-      { productName: 'Cudy GS1024 Switch LAN 24x Gigabit Metalowy', soldToday: 1, revenue: 190.96 }
-    ],
-    ebay: [
-      { productName: 'OOONO CO-Driver NO1 Blitzwarnung Echtzeit', soldToday: 1, revenue: 45.50 },
-      { productName: 'ACE A Digitales Alkoholtester mit Sensor', soldToday: 1, revenue: 32.99 },
-      { productName: 'Telekom Sinus PA 207 Telefonset AB DECT', soldToday: 1, revenue: 56.98 }
-    ],
+    allegro: [],
+    ebay: [],
     totals: {
-      allegro: { items: 5, revenue: 475.62, currency: 'PLN' },
-      ebay: { items: 3, revenue: 135.47, currency: 'EUR' }
+      allegro: { items: 0, revenue: 0, currency: 'PLN' },
+      ebay: { items: 0, revenue: 0, currency: 'EUR' }
     },
-    source: 'mock',
+    source: 'no-data',
+    message: 'Brak danych - połącz się z Dzidkiem',
     timestamp: new Date().toISOString()
   };
 }
@@ -67,25 +83,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    // Spróbuj pobrać z Dzidka
     const dzidekData = await fetchFromDzidek();
     
     if (dzidekData) {
-      return res.status(200).json({
-        ...dzidekData,
-        source: 'dzidek',
-        timestamp: new Date().toISOString()
-      });
+      return res.status(200).json(dzidekData);
     }
 
-    // Fallback na mock data
-    const mockData = getMockData();
-    return res.status(200).json(mockData);
+    // Brak danych - zwróć puste (nie mock!)
+    return res.status(200).json(getEmptyData());
     
   } catch (error: any) {
     console.error('[daily-sales] Error:', error);
-    // Nawet przy błędzie zwróć mock data żeby UI działało
-    const mockData = getMockData();
-    return res.status(200).json(mockData);
+    return res.status(200).json(getEmptyData());
   }
 }

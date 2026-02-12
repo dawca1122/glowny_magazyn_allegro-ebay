@@ -1,7 +1,7 @@
 /**
  * Sales Summary API endpoint
  * GET /api/sales-summary
- * Pobiera dane z Dzidka, fallback na mock jeśli niedostępny
+ * Pobiera dane z Dzidka - NIE używa mock danych
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -13,7 +13,7 @@ const REQUEST_TIMEOUT = 15000;
 
 async function fetchFromDzidek(): Promise<any | null> {
   try {
-    const response = await fetch(`${DZIDEK_URL}/api/warehouse/sales-summary`, {
+    const response = await fetch(`${DZIDEK_URL}/api/app-data`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT),
@@ -22,30 +22,73 @@ async function fetchFromDzidek(): Promise<any | null> {
     if (!response.ok) return null;
     
     const data = await response.json();
-    if (data.success && data.data) {
-      return data.data;
+    console.log('[sales-summary] Dzidek response:', JSON.stringify(data).slice(0, 200));
+    
+    // Przekształć dane z Dzidka do formatu sales-summary
+    if (data.summary || data.platformData) {
+      const platformData = data.platformData || { allegro: {}, ebay: {} };
+      
+      // Oblicz sumy z summary
+      let allegroRevenue = 0;
+      let allegroItems = 0;
+      
+      if (data.summary) {
+        Object.values(data.summary).forEach((item: any) => {
+          allegroRevenue += item.gross || 0;
+          allegroItems += item.soldQty || 0;
+        });
+      }
+      
+      return {
+        daily: {
+          revenue: { 
+            ebay: platformData.ebay?.revenue || 0, 
+            allegro: allegroRevenue || platformData.allegro?.revenue || 0
+          },
+          costs: { products: 0, fees: 0, taxes: 0 },
+          net: { 
+            ebay: platformData.ebay?.profit || 0, 
+            allegro: platformData.allegro?.profit || allegroRevenue * 0.7
+          },
+          items: {
+            ebay: platformData.ebay?.items || 0,
+            allegro: allegroItems || platformData.allegro?.items || 0
+          }
+        },
+        monthly: {
+          revenue: { ebay: 0, allegro: 0 },
+          costs: { products: 0, fees: 0, taxes: 0 },
+          net: { ebay: 0, allegro: 0 },
+          dailyAverage: 0
+        },
+        source: 'dzidek',
+        timestamp: data.timestamp || new Date().toISOString()
+      };
     }
+    
     return null;
   } catch (error) {
-    console.log('[sales-summary] Dzidek unavailable, using mock data');
+    console.log('[sales-summary] Dzidek unavailable:', error);
     return null;
   }
 }
 
-function getMockData() {
+function getEmptyData() {
   return {
     daily: {
-      revenue: { ebay: 2450.75, allegro: 1240.15 },
-      costs: { products: 1476, fees: 369, taxes: 295 },
-      net: { ebay: 1850.50, allegro: 930.00 }
+      revenue: { ebay: 0, allegro: 0 },
+      costs: { products: 0, fees: 0, taxes: 0 },
+      net: { ebay: 0, allegro: 0 },
+      items: { ebay: 0, allegro: 0 }
     },
     monthly: {
-      revenue: { ebay: 24574.75, allegro: 12401.50 },
-      costs: { products: 9244.07, fees: 4186.84, taxes: 3697.63 },
-      net: { ebay: 12779.86, allegro: 7068.85 },
-      dailyAverage: 662.00
+      revenue: { ebay: 0, allegro: 0 },
+      costs: { products: 0, fees: 0, taxes: 0 },
+      net: { ebay: 0, allegro: 0 },
+      dailyAverage: 0
     },
-    source: 'mock',
+    source: 'no-data',
+    message: 'Brak danych - połącz się z Dzidkiem',
     timestamp: new Date().toISOString()
   };
 }
@@ -59,24 +102,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    // Spróbuj pobrać z Dzidka
     const dzidekData = await fetchFromDzidek();
     
     if (dzidekData) {
-      return res.status(200).json({
-        ...dzidekData,
-        source: 'dzidek',
-        timestamp: new Date().toISOString()
-      });
+      return res.status(200).json(dzidekData);
     }
 
-    // Fallback na mock data
-    const mockData = getMockData();
-    return res.status(200).json(mockData);
+    return res.status(200).json(getEmptyData());
     
   } catch (error: any) {
     console.error('[sales-summary] Error:', error);
-    const mockData = getMockData();
-    return res.status(200).json(mockData);
+    return res.status(200).json(getEmptyData());
   }
 }
