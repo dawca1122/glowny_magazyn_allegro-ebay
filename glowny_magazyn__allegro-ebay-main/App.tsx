@@ -95,7 +95,7 @@ const App: React.FC = () => {
       setItems(data);
       if (isConfigured) setSupabaseHealth('ok');
     } catch (error) {
-      showNotification('Błąd podczas pobierania danych z Supabase.', 'error');
+      console.warn('[Inventory] Failed to fetch from Supabase:', error);
       if (isConfigured) setSupabaseHealth('error');
     } finally {
       setLoading(false);
@@ -297,10 +297,9 @@ const App: React.FC = () => {
       }
       
     } catch (error) {
-      console.error('Błąd pobierania dziennej sprzedaży:', error);
-      showNotification('Błąd pobierania dziennej sprzedaży', 'error');
+      console.warn('[DailySales] API unavailable, using fallback data:', error);
       
-      // Fallback na mock danych jeśli API nie działa
+      // Fallback na mock danych jeśli API nie działa - bez alertu
       const today = new Date().toISOString().split('T')[0];
       
       const allegroSales = [
@@ -362,10 +361,11 @@ const App: React.FC = () => {
       try {
         const healthy = await inventoryService.checkConnection();
         setSupabaseHealth(healthy ? 'ok' : 'error');
-        if (!healthy) showNotification('Brak połączenia z Supabase.', 'error');
+        // Ciche logowanie zamiast alertu
+        if (!healthy) console.warn('[Supabase] Connection check failed');
       } catch (e) {
         setSupabaseHealth('error');
-        showNotification('Nie udało się zweryfikować połączenia z Supabase.', 'error');
+        console.warn('[Supabase] Connection error:', e);
       }
     };
     checkConnection();
