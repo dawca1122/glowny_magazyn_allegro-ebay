@@ -40,7 +40,7 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {
       // TODO: Wywołaj API do dodania na Allegro
       // Na razie tylko zapisujemy SKU
       
-      onNotify(\`SKU Allegro "\${allegroSku}" zapisane dla EAN: \${item.ean || item.sku}\`, 'success');
+      onNotify(`SKU Allegro "\${allegroSku}" zapisane dla EAN: \${item.ean || item.sku}`, 'success');
       
       // Wyczyść input
       setAllegroSkuInputs(prev => {
@@ -51,7 +51,7 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {
       
       onRefresh();
     } catch (err: any) {
-      onNotify(\`Błąd zapisu: \${err?.message || 'Nieznany błąd'}\`, 'error');
+      onNotify(`Błąd zapisu: \${err?.message || 'Nieznany błąd'}`, 'error');
     } finally {
       setSavingSku(null);
     }
@@ -108,9 +108,9 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {
           return (
             <div 
               key={item.sku} 
-              className={\`grid grid-cols-[1fr_auto_1fr] gap-0 hover:bg-slate-50 transition-colors \${
+              className={`grid grid-cols-[1fr_auto_1fr] gap-0 hover:bg-slate-50 transition-colors \${
                 isLinked ? 'bg-emerald-50/30' : ''
-              }\`}
+              }`}
             >
               {/* eBay Side (Left) */}
               <div className="grid grid-cols-[60px_100px_60px_1fr] gap-2 px-4 py-4 items-center border-r border-slate-100">
@@ -132,7 +132,7 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {
                 
                 {/* Ilość eBay */}
                 <div className="text-center">
-                  <span className={\`text-sm font-black \${(item.ebay_stock ?? item.total_stock) < 5 ? 'text-rose-500' : 'text-slate-700'}\`}>
+                  <span className={`text-sm font-black \${(item.ebay_stock ?? item.total_stock) < 5 ? 'text-rose-500' : 'text-slate-700'}`}>
                     {item.ebay_stock ?? item.total_stock}
                   </span>
                 </div>
@@ -169,11 +169,11 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {
                     value={allegroSkuValue}
                     onChange={(e) => handleAllegroSkuChange(item.ean || item.sku, e.target.value)}
                     disabled={hasAllegroListing}
-                    className={\`w-full px-2 py-1.5 text-xs font-bold border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all \${
+                    className={`w-full px-2 py-1.5 text-xs font-bold border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all \${
                       hasAllegroListing 
                         ? 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-not-allowed' 
                         : 'bg-white border-slate-200 text-slate-700'
-                    }\`}
+                    }`}
                   />
                 </div>
                 
@@ -182,13 +182,13 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {
                   <button
                     onClick={() => handleSaveAndAddToAllegro(item)}
                     disabled={isSaving || hasAllegroListing}
-                    className={\`w-full px-3 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 transition-all \${
+                    className={`w-full px-3 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 transition-all \${
                       hasAllegroListing
                         ? 'bg-emerald-100 text-emerald-700 border border-emerald-200 cursor-not-allowed'
                         : isSaving
                         ? 'bg-orange-100 text-orange-600 animate-pulse'
                         : 'bg-orange-500 text-white hover:bg-orange-600 hover:shadow-lg hover:shadow-orange-500/30 active:scale-95'
-                    }\`}
+                    }`}
                   >
                     {isSaving ? (
                       <><RefreshCw className="w-3 h-3 animate-spin" /> Zapisuję...</>
@@ -202,14 +202,14 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {
                 
                 {/* Ilość Allegro */}
                 <div className="text-center">
-                  <span className={\`text-sm font-black \${(item.allegro_stock ?? 0) < 5 ? 'text-rose-500' : 'text-slate-700'}\`}>
+                  <span className={`text-sm font-black \${(item.allegro_stock ?? 0) < 5 ? 'text-rose-500' : 'text-slate-700'}`}>
                     {item.allegro_stock ?? '-'}
                   </span>
                 </div>
                 
                 {/* Tytuł Allegro */}
                 <div className="truncate">
-                  <span className={\`text-sm font-medium line-clamp-2 \${item.allegro_title ? 'text-slate-700' : 'text-slate-300 italic'}\`}>
+                  <span className={`text-sm font-medium line-clamp-2 \${item.allegro_title ? 'text-slate-700' : 'text-slate-300 italic'}`}>
                     {item.allegro_title || 'Brak ogłoszenia'}
                   </span>
                 </div>
