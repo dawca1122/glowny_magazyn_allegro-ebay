@@ -108,13 +108,47 @@ const App: React.FC = () => {
       if (response.ok) {
         const apiSummary = await response.json();
         setNetProfit(apiSummary);
+        // Also update salesSummary for compatibility
+        setSalesSummary({});
       } else {
         // Fallback na lokalny serwis
         const summary = await salesService.fetchSummary();
         setSalesSummary(summary);
+        // Also update netProfit for UI
+        setNetProfit({
+          daily: {
+            revenue: { ebay: 0, allegro: 0 },
+            costs: { products: 0, fees: 0, taxes: 0 },
+            net: { ebay: 0, allegro: 0 }
+          },
+          monthly: {
+            revenue: { ebay: 0, allegro: 0 },
+            costs: { products: 0, fees: 0, taxes: 0 },
+            net: { ebay: 0, allegro: 0 },
+            dailyAverage: { ebay: 0, allegro: 0 }
+          },
+          source: 'fallback',
+          timestamp: new Date().toISOString()
+        });
       }
     } catch (err) {
       console.error('[Sales] fetchSummary failed', err);
+      // Set empty data to avoid UI errors
+      setNetProfit({
+        daily: {
+          revenue: { ebay: 0, allegro: 0 },
+          costs: { products: 0, fees: 0, taxes: 0 },
+          net: { ebay: 0, allegro: 0 }
+        },
+        monthly: {
+          revenue: { ebay: 0, allegro: 0 },
+          costs: { products: 0, fees: 0, taxes: 0 },
+          net: { ebay: 0, allegro: 0 },
+          dailyAverage: { ebay: 0, allegro: 0 }
+        },
+        source: 'error',
+        timestamp: new Date().toISOString()
+      });
     }
   };
 
