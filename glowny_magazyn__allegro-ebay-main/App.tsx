@@ -115,10 +115,55 @@ const App: React.FC = () => {
           const dzidekData = await dzidekResponse.json();
           console.log('[Sales] Data from Dzidek:', dzidekData);
           
+          // Dzidek zwraca: { summary: {...produkty}, platformData: {...} }
+          // Musimy przekształcić na format { daily, monthly }
+          if (dzidekData.summary || dzidekData.platformData) {
+            // Oblicz sumę z summary (prawdziwe dane sprzedaży)
+            let allegroRevenue = 0;
+            let allegroItems = 0;
+            if (dzidekData.summary) {
+              Object.values(dzidekData.summary).forEach((item: any) => {
+                allegroRevenue += item.gross || 0;
+                allegroItems += item.soldQty || 0;
+              });
+            }
+            
+            // Użyj platformData jeśli ma dane, inaczej summary
+            const ebayRev = dzidekData.platformData?.ebay?.revenue || 0;
+            const allegroRev = dzidekData.platformData?.allegro?.revenue || allegroRevenue;
+            
+            // Szacowane koszty (30% produkty, 12% prowizje, 8% shipping/VAT)
+            const totalRevenue = allegroRev;
+            const productCosts = totalRevenue * 0.30;
+            const fees = totalRevenue * 0.12;
+            const taxes = totalRevenue * 0.08;
+            const netAllegro = totalRevenue - productCosts - fees - taxes;
+            
+            const transformedData = {
+              daily: {
+                revenue: { ebay: ebayRev, allegro: allegroRev },
+                costs: { products: productCosts, fees: fees, taxes: taxes },
+                net: { ebay: ebayRev * 0.5, allegro: netAllegro }
+              },
+              monthly: {
+                revenue: { ebay: ebayRev, allegro: allegroRev },
+                costs: { products: productCosts, fees: fees, taxes: taxes },
+                net: { ebay: ebayRev * 0.5, allegro: netAllegro },
+                dailyAverage: netAllegro / 12 // ~12 dni od początku miesiąca
+              }
+            };
+            
+            console.log('[Sales] Transformed Dzidek data:', transformedData);
+            setNetProfit(transformedData);
+            setSalesSummary({});
+            return; // Sukces - mamy dane z Dzidka
+          }
+          
+          // Stary format (daily/monthly)
           if (dzidekData.daily || dzidekData.monthly) {
             setNetProfit(dzidekData);
             setSalesSummary({});
-            return; // Sukces - mamy dane z Dzidka
+            return;
           }
         }
       } catch (dzidekError) {

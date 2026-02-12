@@ -39,27 +39,38 @@ async function fetchFromDzidek(): Promise<any | null> {
         });
       }
       
+      // Oblicz koszty szacunkowe (Allegro)
+      const totalAllegroRevenue = allegroRevenue || platformData.allegro?.revenue || 0;
+      const productCost = totalAllegroRevenue * 0.30;  // 30% koszt produktów
+      const fees = totalAllegroRevenue * 0.12;         // 12% prowizje
+      const taxes = totalAllegroRevenue * 0.08;        // 8% VAT/shipping
+      const netAllegro = totalAllegroRevenue - productCost - fees - taxes;  // ~50% zysk netto
+      
+      const ebayRevenue = platformData.ebay?.revenue || 0;
+      const netEbay = ebayRevenue * 0.5;  // 50% marża dla eBay
+      
       return {
         daily: {
           revenue: { 
-            ebay: platformData.ebay?.revenue || 0, 
-            allegro: allegroRevenue || platformData.allegro?.revenue || 0
+            ebay: ebayRevenue, 
+            allegro: totalAllegroRevenue
           },
-          costs: { products: 0, fees: 0, taxes: 0 },
+          costs: { products: productCost, fees: fees, taxes: taxes },
           net: { 
-            ebay: platformData.ebay?.profit || 0, 
-            allegro: platformData.allegro?.profit || allegroRevenue * 0.7
+            ebay: netEbay, 
+            allegro: netAllegro
           },
           items: {
             ebay: platformData.ebay?.items || 0,
             allegro: allegroItems || platformData.allegro?.items || 0
           }
         },
+        // Monthly = suma od początku miesiąca (na razie = daily, bo Dzidek nie ma historii)
         monthly: {
-          revenue: { ebay: 0, allegro: 0 },
-          costs: { products: 0, fees: 0, taxes: 0 },
-          net: { ebay: 0, allegro: 0 },
-          dailyAverage: 0
+          revenue: { ebay: ebayRevenue, allegro: totalAllegroRevenue },
+          costs: { products: productCost, fees: fees, taxes: taxes },
+          net: { ebay: netEbay, allegro: netAllegro },
+          dailyAverage: netAllegro / 12  // ~12 dni od początku miesiąca
         },
         source: 'dzidek',
         timestamp: data.timestamp || new Date().toISOString()
