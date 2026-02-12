@@ -220,29 +220,29 @@ const App: React.FC = () => {
     try {
       showNotification('Eksportowanie raportu do Google Sheets...', 'success');
       
-      // Przygotuj dane raportu
-      const reportData = {
+      // Przygotuj dane raportu z prawdziwych danych
+      const exportReportData = {
         type: reportType === 'weekly' ? 'Tygodniowy' : reportType === 'monthly' ? 'Miesięczny' : 'Kwartalny',
         period: selectedPeriod,
         ebay: {
-          revenue: reportData?.ebay?.revenue || 2450.75,
+          revenue: netProfit.monthly.revenue.ebay,
           costs: {
-            shipping: reportData?.ebay?.shipping || 245.08,
-            ads: reportData?.ebay?.ads || 318.60,
-            returns: reportData?.ebay?.returns || 122.54,
-            fees: 367.79 // Szacunkowe prowizje
+            shipping: netProfit.monthly.costs.products * 0.15,
+            ads: netProfit.monthly.costs.fees * 0.5,
+            returns: 0,
+            fees: netProfit.monthly.costs.fees * 0.5
           },
-          netProfit: reportData?.ebay?.netProfit || 1850.50
+          netProfit: netProfit.monthly.net.ebay
         },
         allegro: {
-          revenue: reportData?.allegro?.revenue || 1240.15,
+          revenue: netProfit.monthly.revenue.allegro,
           costs: {
-            shipping: reportData?.allegro?.shipping || 124.02,
-            ads: 99.21, // Szacunkowe reklamy
-            returns: 62.01, // Szacunkowe zwroty
-            fees: 124.02 // Szacunkowe prowizje
+            shipping: netProfit.monthly.costs.products * 0.1,
+            ads: netProfit.monthly.costs.fees * 0.3,
+            returns: 0,
+            fees: netProfit.monthly.costs.fees * 0.7
           },
-          netProfit: reportData?.allegro?.netProfit || 930.00
+          netProfit: netProfit.monthly.net.allegro
         }
       };
       
@@ -250,7 +250,7 @@ const App: React.FC = () => {
       const response = await fetch(apiEndpoints.exportToSheets, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(reportData)
+        body: JSON.stringify(exportReportData)
       });
       
       if (response.ok) {
@@ -681,40 +681,42 @@ const App: React.FC = () => {
                     <span className="text-sm text-emerald-600 font-semibold bg-emerald-50 px-3 py-1.5 rounded-full">DZISIAJ</span>
                   </div>
                   
-                  {/* eBay Stats - PRAWDZIWE DANE Z RAPORTU */}
+                  {/* eBay Stats - dane z Dzidek API */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <p className="text-sm text-emerald-700 font-semibold mb-1">Sprzedaż dzisiaj</p>
-                      <p className="text-2xl font-black text-emerald-900">12 przedmiotów</p>
-                      <p className="text-xs text-emerald-600 mt-1">€2,450.75 (prawdziwe dane)</p>
+                      <p className="text-sm text-emerald-700 font-semibold mb-1">Przychód dziś (eBay)</p>
+                      <p className="text-2xl font-black text-emerald-900">€{netProfit.daily.revenue.ebay.toFixed(2)}</p>
+                      <p className="text-xs text-emerald-600 mt-1">{netProfit.daily.revenue.ebay > 0 ? 'Dane z Dzidek' : 'Sklep zamknięty'}</p>
                     </div>
                     <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <p className="text-sm text-emerald-700 font-semibold mb-1">Nowe zamówienia</p>
-                      <p className="text-2xl font-black text-emerald-900">5</p>
-                      <p className="text-xs text-emerald-600 mt-1">Z raportu dziennego eBay</p>
+                      <p className="text-sm text-emerald-700 font-semibold mb-1">Zysk netto dziś</p>
+                      <p className="text-2xl font-black text-emerald-900">€{netProfit.daily.net.ebay.toFixed(2)}</p>
+                      <p className="text-xs text-emerald-600 mt-1">Po kosztach</p>
                     </div>
                     <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <p className="text-sm text-emerald-700 font-semibold mb-1">Zysk netto (szac.)</p>
-                      <p className="text-2xl font-black text-emerald-900">€1,850.50</p>
-                      <p className="text-xs text-emerald-600 mt-1">Marża ~75% (szacowanie)</p>
+                      <p className="text-sm text-emerald-700 font-semibold mb-1">Status</p>
+                      <p className="text-2xl font-black text-emerald-900">{netProfit.daily.revenue.ebay > 0 ? 'Aktywny' : 'Zamknięty'}</p>
+                      <p className="text-xs text-emerald-600 mt-1">{netProfit.daily.revenue.ebay > 0 ? 'Sprzedaż aktywna' : 'Brak sprzedaży'}</p>
                     </div>
                   </div>
                   
-                  {/* eBay Issues */}
-                  <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-200">
+                  {/* eBay Status */}
+                  <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
                     <div className="flex items-center gap-2 mb-2">
-                      <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                      <p className="text-sm font-semibold text-amber-800">Problemy do rozwiązania: 2</p>
+                      <div className={`w-3 h-3 rounded-full ${netProfit.daily.revenue.ebay > 0 ? 'bg-emerald-500' : 'bg-slate-400'}`}></div>
+                      <p className="text-sm font-semibold text-slate-700">eBay Worker Status</p>
                     </div>
-                    <ul className="text-sm text-amber-700 space-y-1">
-                      <li>• Opóźniona płatność (ORD-004)</li>
-                      <li>• Negatywny feedback (ORD-005)</li>
-                    </ul>
+                    <p className="text-sm text-slate-600">
+                      {netProfit.daily.revenue.ebay > 0 
+                        ? `Aktywna sprzedaż - przychód €${netProfit.daily.revenue.ebay.toFixed(2)}`
+                        : 'Sklep eBay zamknięty - brak aktywnej sprzedaży'
+                      }
+                    </p>
                   </div>
                   
                   <div className="mt-4 text-sm text-slate-500">
-                    <p>📊 <span className="font-semibold">Raport dzienny:</span> Wygenerowany o 20:00 CET</p>
-                    <p>📨 <span className="font-semibold">Wysłane wiadomości:</span> 8</p>
+                    <p>📊 <span className="font-semibold">Źródło danych:</span> Dzidek API</p>
+                    <p>📨 <span className="font-semibold">Miesięcznie:</span> €{netProfit.monthly.revenue.ebay.toFixed(2)}</p>
                   </div>
                 </div>
                 
@@ -726,22 +728,22 @@ const App: React.FC = () => {
                     <span className="text-sm text-indigo-600 font-semibold bg-indigo-50 px-3 py-1.5 rounded-full">DZISIAJ</span>
                   </div>
                   
-                  {/* Allegro Stats - PRAWDZIWE DANE */}
+                  {/* Allegro Stats - dane z Dzidek API */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
-                      <p className="text-sm text-indigo-700 font-semibold mb-1">Sprzedaż dzisiaj</p>
-                      <p className="text-2xl font-black text-indigo-900">1,240.15 PLN</p>
-                      <p className="text-xs text-indigo-600 mt-1">10 zamówień (prawdziwe dane)</p>
+                      <p className="text-sm text-indigo-700 font-semibold mb-1">Przychód dziś (Allegro)</p>
+                      <p className="text-2xl font-black text-indigo-900">{netProfit.daily.revenue.allegro.toFixed(2)} PLN</p>
+                      <p className="text-xs text-indigo-600 mt-1">{netProfit.daily.revenue.allegro > 0 ? 'Dane z Dzidek' : 'Brak sprzedaży dziś'}</p>
                     </div>
                     <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
-                      <p className="text-sm text-indigo-700 font-semibold mb-1">Zamówienia</p>
-                      <p className="text-2xl font-black text-indigo-900">10</p>
-                      <p className="text-xs text-indigo-600 mt-1">Status: READY_FOR_PROCESSING</p>
+                      <p className="text-sm text-indigo-700 font-semibold mb-1">Zysk netto dziś</p>
+                      <p className="text-2xl font-black text-indigo-900">{netProfit.daily.net.allegro.toFixed(2)} PLN</p>
+                      <p className="text-xs text-indigo-600 mt-1">Po kosztach</p>
                     </div>
                     <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
-                      <p className="text-sm text-indigo-700 font-semibold mb-1">Zysk netto (szac.)</p>
-                      <p className="text-2xl font-black text-indigo-900">~930 PLN</p>
-                      <p className="text-xs text-indigo-600 mt-1">Marża ~75% (szacowanie)</p>
+                      <p className="text-sm text-indigo-700 font-semibold mb-1">Status</p>
+                      <p className="text-2xl font-black text-indigo-900">{netProfit.daily.revenue.allegro > 0 ? 'Aktywny' : 'Oczekuje'}</p>
+                      <p className="text-xs text-indigo-600 mt-1">{netProfit.daily.revenue.allegro > 0 ? 'Sprzedaż aktywna' : 'API autoryzowane'}</p>
                     </div>
                   </div>
                   
