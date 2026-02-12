@@ -6,10 +6,29 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.90.1",
     "@vercel/node": "^3.0.21",
-    "busboy": "^1.6.0"
+    "busboy": "^1.6.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "googleapis": "^171.4.0"
   },
   "devDependencies": {
     "@types/busboy": "^1.5.4",
     "@types/node": "^22.14.0"
-  }
+  },
+  "description": "magazyn",
+  "main": "api-server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://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@github.com/dawca1122/glowny_magazyn_allegro-ebay.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/dawca1122/glowny_magazyn_allegro-ebay/issues"
+  },
+  "homepage": "https://github.com/dawca1122/glowny_magazyn_allegro-ebay#readme"
 }

@@ -69,3 +69,63 @@ export type AllegroSearchResponse = {
   ean: string;
   top3: AllegroCatalogItem[];
 };
+
+// Nowe typy dla szczegółowych raportów
+export type ReportType = 'weekly' | 'monthly' | 'quarterly';
+
+export interface DetailedCosts {
+  shipping: number;      // Koszty wysyłki
+  ads: number;          // Koszty reklam
+  returns: number;      // Zwroty/refundy
+  fees: number;         // Prowizje platform
+  taxes: number;        // Podatki/VAT
+  products: number;     // Koszty produktów
+  other: number;        // Inne koszty
+}
+
+export interface PlatformReport {
+  platform: 'ebay' | 'allegro';
+  period: string; // YYYY-MM-DD dla weekly, YYYY-MM dla monthly, YYYY-Q1 itp
+  reportType: ReportType;
+  
+  // Podstawowe dane
+  revenue: number;      // Przychód brutto
+  orders: number;       // Liczba zamówień
+  itemsSold: number;    // Liczba sprzedanych sztuk
+  
+  // Szczegółowe koszty
+  costs: DetailedCosts;
+  
+  // Zyski
+  grossProfit: number;  // Zysk brutto (revenue - products)
+  netProfit: number;    // Zysk netto (revenue - wszystkie koszty)
+  
+  // Metadane
+  generatedAt: string;
+  currency: string;     // EUR dla eBay, PLN dla Allegro
+}
+
+export interface CombinedReport {
+  period: string;
+  reportType: ReportType;
+  
+  // Suma obu platform
+  totalRevenue: number;
+  totalOrders: number;
+  totalItemsSold: number;
+  
+  // Szczegółowe koszty (suma)
+  totalCosts: DetailedCosts;
+  
+  // Zyski
+  totalGrossProfit: number;
+  totalNetProfit: number;
+  
+  // Per platform (dla podziału)
+  ebay: Omit<PlatformReport, 'platform' | 'period' | 'reportType' | 'generatedAt'>;
+  allegro: Omit<PlatformReport, 'platform' | 'period' | 'reportType' | 'generatedAt'>;
+  
+  // Metadane
+  generatedAt: string;
+  note?: string;
+}

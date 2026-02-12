@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Package, LogOut, Bell, Search, Plus, Database, CloudOff, TrendingUp, ShoppingBag, FileCheck, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Package, LogOut, Bell, Search, Plus, Database, CloudOff, TrendingUp, ShoppingBag, FileCheck, BarChart3, LineChart } from 'lucide-react';
 import InventoryTable from './InventoryTable';
 import { inventoryService, isConfigured } from './supabaseClient';
 import { InventoryItem, SalesSummaryMap, PeriodReport, ReportPeriodType, ChannelReport } from './types';
 import { salesService } from './salesService';
 import { reportsService } from './reportsService';
 
-type View = 'dashboard' | 'magazyn' | 'raporty';
+type View = 'dashboard' | 'magazyn' | 'raporty' | 'wykresy';
 type Platform = 'overview' | 'ebay' | 'allegro';
 type ReportType = 'weekly' | 'monthly' | 'quarterly';
 
@@ -27,6 +27,14 @@ const App: React.FC = () => {
   const [reportData, setReportData] = useState<PeriodReport | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  
+  // Stan dla wykresów
+  const [chartData, setChartData] = useState<any>(null);
+  const [monthlyChartData, setMonthlyChartData] = useState<any>(null);
+  const [platformStats, setPlatformStats] = useState<any>(null);
+  const [chartLoading, setChartLoading] = useState(false);
+  const [chartPeriod, setChartPeriod] = useState<'7d' | '30d' | '90d'>('30d');
+  const [chartPlatform, setChartPlatform] = useState<'all' | 'ebay' | 'allegro'>('all');
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [supabaseHealth, setSupabaseHealth] = useState<'disabled' | 'unknown' | 'ok' | 'error'>(isConfigured ? 'unknown' : 'disabled');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -95,8 +103,16 @@ const App: React.FC = () => {
 
   const fetchSales = async () => {
     try {
-      const summary = await salesService.fetchSummary();
-      setSalesSummary(summary);
+      // Spróbuj pobrać z API
+      const response = await fetch('http://localhost:3001/api/sales-summary');
+      if (response.ok) {
+        const apiSummary = await response.json();
+        setNetProfit(apiSummary);
+      } else {
+        // Fallback na lokalny serwis
+        const summary = await salesService.fetchSummary();
+        setSalesSummary(summary);
+      }
     } catch (err) {
       console.error('[Sales] fetchSummary failed', err);
     }
@@ -114,6 +130,39 @@ const App: React.FC = () => {
       setReportData(null);
     } finally {
       setReportLoading(false);
+    }
+  };
+
+  // Pobierz dane wykresów
+  const fetchChartData = async () => {
+    try {
+      setChartLoading(true);
+      
+      // Pobierz dane liniowe
+      const chartResponse = await fetch(`http://localhost:3001/api/chart-data?period=${chartPeriod}&platform=${chartPlatform}`);
+      const chartResult = await chartResponse.json();
+      if (chartResult.success) {
+        setChartData(chartResult);
+      }
+      
+      // Pobierz dane miesięczne
+      const monthlyResponse = await fetch('http://localhost:3001/api/monthly-chart-data?months=6');
+      const monthlyResult = await monthlyResponse.json();
+      if (monthlyResult.success) {
+        setMonthlyChartData(monthlyResult);
+      }
+      
+      // Pobierz statystyki platform
+      const statsResponse = await fetch('http://localhost:3001/api/platform-stats');
+      const statsResult = await statsResponse.json();
+      if (statsResult.success) {
+        setPlatformStats(statsResult);
+      }
+      
+    } catch (error) {
+      console.error('Błąd pobierania danych wykresów:', error);
+    } finally {
+      setChartLoading(false);
     }
   };
 
@@ -148,8 +197,8 @@ const App: React.FC = () => {
         }
       };
       
-      // Wysłanie danych do backendu (do zaimplementowania)
-      const response = await fetch('/api/export-to-sheets', {
+      // Wysłanie danych do lokalnego API
+      const response = await fetch('http://localhost:3001/api/export-to-sheets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reportData)
@@ -177,11 +226,52 @@ const App: React.FC = () => {
     try {
       setDailySalesLoading(true);
       
-      // TODO: Zaimplementować rzeczywiste API call
-      // Na razie mock danych
+      // Pobierz dane z lokalnego API
+      const response = await fetch('http://localhost:3001/api/daily-sales');
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Przekształć dane do formatu wymaganego przez komponent
+      const allegroSales = data.allegro.map((item: any) => ({
+        productName: item.productName,
+        soldToday: item.soldToday
+      }));
+      
+      const ebaySales = data.ebay.map((item: any) => ({
+        productName: item.productName,
+        soldToday: item.soldToday
+      }));
+      
+      setDailySalesDropdown({
+        allegro: allegroSales,
+        ebay: ebaySales
+      });
+      
+      // Aktualizuj podsumowanie dziennej sprzedaży
+      if (data.totals) {
+        setNetProfit(prev => ({
+          ...prev,
+          daily: {
+            ...prev.daily,
+            revenue: {
+              ebay: data.totals.ebay?.revenue || prev.daily.revenue.ebay,
+              allegro: data.totals.allegro?.revenue || prev.daily.revenue.allegro
+            }
+          }
+        }));
+      }
+      
+    } catch (error) {
+      console.error('Błąd pobierania dziennej sprzedaży:', error);
+      showNotification('Błąd pobierania dziennej sprzedaży', 'error');
+      
+      // Fallback na mock danych jeśli API nie działa
       const today = new Date().toISOString().split('T')[0];
       
-      // Mock danych Allegro
       const allegroSales = [
         { productName: 'iPhone 15 Pro Max 256GB', soldToday: 3 },
         { productName: 'Samsung Galaxy S24 Ultra', soldToday: 2 },
@@ -190,7 +280,6 @@ const App: React.FC = () => {
         { productName: 'Apple Watch Series 9', soldToday: 4 }
       ];
       
-      // Mock danych eBay
       const ebaySales = [
         { productName: 'Sony PlayStation 5', soldToday: 2 },
         { productName: 'Xbox Series X', soldToday: 1 },
@@ -203,10 +292,6 @@ const App: React.FC = () => {
         allegro: allegroSales,
         ebay: ebaySales
       });
-      
-    } catch (error) {
-      console.error('Błąd pobierania dziennej sprzedaży:', error);
-      showNotification('Błąd pobierania dziennej sprzedaży', 'error');
     } finally {
       setDailySalesLoading(false);
     }
@@ -269,6 +354,12 @@ const App: React.FC = () => {
     if (currentView !== 'raporty') return;
     fetchReport(reportPeriodType, selectedPeriod);
   }, [currentView, reportPeriodType, selectedPeriod]);
+
+  // Pobierz dane wykresów gdy wejdziesz w zakładkę wykresy
+  useEffect(() => {
+    if (currentView !== 'wykresy') return;
+    fetchChartData();
+  }, [currentView, chartPeriod, chartPlatform]);
 
   // Pobierz dzienną sprzedaż przy starcie
   useEffect(() => {
@@ -371,6 +462,15 @@ const App: React.FC = () => {
           >
             <BarChart3 className="w-5 h-5" />
             <span>Raporty</span>
+          </button>
+          <button 
+            onClick={() => setCurrentView('wykresy')}
+            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-semibold ${
+              currentView === 'wykresy' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <TrendingUp className="w-5 h-5" />
+            <span>Wykresy</span>
           </button>
         </nav>
 

@@ -19,7 +19,7 @@ const getEnvVar = (name: string): string => {
   return '';
 };
 
-const SALES_ENDPOINT = getEnvVar('VITE_ALLEGRO_SALES_ENDPOINT');
+const SALES_ENDPOINT = getEnvVar('VITE_ALLEGRO_SALES_ENDPOINT') || 'http://localhost:3001/api/sales-summary';
 
 export const salesService = {
   async fetchSummary(): Promise<SalesSummaryMap> {
