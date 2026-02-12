@@ -126,10 +126,8 @@ const App: React.FC = () => {
             revenue: { ebay: 0, allegro: 0 },
             costs: { products: 0, fees: 0, taxes: 0 },
             net: { ebay: 0, allegro: 0 },
-            dailyAverage: { ebay: 0, allegro: 0 }
-          },
-          source: 'fallback',
-          timestamp: new Date().toISOString()
+            dailyAverage: 0
+          }
         });
       }
     } catch (err) {
@@ -145,10 +143,8 @@ const App: React.FC = () => {
           revenue: { ebay: 0, allegro: 0 },
           costs: { products: 0, fees: 0, taxes: 0 },
           net: { ebay: 0, allegro: 0 },
-          dailyAverage: { ebay: 0, allegro: 0 }
-        },
-        source: 'error',
-        timestamp: new Date().toISOString()
+          dailyAverage: 0
+        }
       });
     }
   };
