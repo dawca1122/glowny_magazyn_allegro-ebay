@@ -30,6 +30,7 @@ export const apiEndpoints = {
   exportToSheets: `${API_BASE}/api/export-to-sheets`,
   reports: `${API_BASE}/api/reports`,
   dzidekSync: `${API_BASE}/api/dzidek-sync`,
+  dzidekStatus: `${API_BASE}/api/dzidek-status`,
   workerCommand: `${API_BASE}/api/worker-command`,
 };
 
