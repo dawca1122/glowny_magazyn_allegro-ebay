@@ -3,5 +3,11 @@
   "installCommand": "npm install && cd glowny_magazyn__allegro-ebay-main && npm install",
   "buildCommand": "cd glowny_magazyn__allegro-ebay-main && npm run build",
   "devCommand": "cd glowny_magazyn__allegro-ebay-main && npm run dev -- --host",
-  "outputDirectory": "glowny_magazyn__allegro-ebay-main/dist"
+  "outputDirectory": "glowny_magazyn__allegro-ebay-main/dist",
+  "crons": [
+    {
+      "path": "/api/cron-daily",
+      "schedule": "0 3 * * *"
+    }
+  ]
 }
