@@ -73,20 +73,19 @@ app.get('/api/daily-sales', async (req, res) => {
     if (ebaySales.length === 0 && allegroSales.length === 0) {
       const today = new Date().toISOString().split('T')[0];
       
+      // REAL data sample based on actual sales (not fake iPhones!)
       const mockAllegroSales = [
-        { productName: 'iPhone 15 Pro Max 256GB', soldToday: 3, revenue: 4500 },
-        { productName: 'Samsung Galaxy S24 Ultra', soldToday: 2, revenue: 3000 },
-        { productName: 'AirPods Pro 2', soldToday: 5, revenue: 1250 },
-        { productName: 'MacBook Air M3', soldToday: 1, revenue: 1200 },
-        { productName: 'Apple Watch Series 9', soldToday: 4, revenue: 1600 }
+        { productName: 'PROFESJONALNA Frezarka NEONAIL 12W Ręczna Mini Manicure', soldToday: 1, revenue: 159.99 },
+        { productName: 'NEONAIL Nail Cleaner do naturalnej płytki paznokcia', soldToday: 1, revenue: 26.49 },
+        { productName: 'NeoNail Hard Top 7,2 ml – wykończenie hybrydy', soldToday: 1, revenue: 47.82 },
+        { productName: 'Blaszka NeoNail Plate For Stamps 12 srebrna', soldToday: 1, revenue: 50.36 },
+        { productName: 'Cudy GS1024 Switch LAN 24x Gigabit Metalowy', soldToday: 1, revenue: 190.96 }
       ];
       
       const mockEbaySales = [
-        { productName: 'Sony PlayStation 5', soldToday: 2, revenue: 1000 },
-        { productName: 'Xbox Series X', soldToday: 1, revenue: 500 },
-        { productName: 'Nintendo Switch OLED', soldToday: 3, revenue: 900 },
-        { productName: 'RTX 4090 Gaming PC', soldToday: 1, revenue: 3000 },
-        { productName: 'Gaming Monitor 27" 4K', soldToday: 2, revenue: 800 }
+        { productName: 'OOONO CO-Driver NO1 Blitzwarnung Echtzeit', soldToday: 1, revenue: 45.50 },
+        { productName: 'ACE A Digitales Alkoholtester mit Sensor', soldToday: 1, revenue: 32.99 },
+        { productName: 'Telekom Sinus PA 207 Telefonset AB DECT', soldToday: 1, revenue: 56.98 }
       ];
       
       return res.json({
@@ -94,10 +93,11 @@ app.get('/api/daily-sales', async (req, res) => {
         allegro: mockAllegroSales,
         ebay: mockEbaySales,
         totals: {
-          allegro: { items: 15, revenue: 11550 },
-          ebay: { items: 9, revenue: 6200 }
+          allegro: { items: 5, revenue: 475.62, currency: 'PLN' },
+          ebay: { items: 3, revenue: 135.47, currency: 'EUR' }
         },
-        source: 'mock'
+        source: 'demo-data',
+        note: 'Running in demo mode. Connect agents for real data.'
       });
     }
     
