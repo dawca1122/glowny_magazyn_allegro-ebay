@@ -4,6 +4,17 @@
   "buildCommand": "cd glowny_magazyn__allegro-ebay-main && npm run build",
   "devCommand": "cd glowny_magazyn__allegro-ebay-main && npm run dev -- --host",
   "outputDirectory": "glowny_magazyn__allegro-ebay-main/dist",
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "@vercel/node@3"
+    },
+    "api/**/*.js": {
+      "runtime": "@vercel/node@3"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/:path*" }
+  ],
   "crons": [
     {
       "path": "/api/cron-daily",
