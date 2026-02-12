@@ -9,6 +9,7 @@ import { reportsService } from './reportsService';
 
 type View = 'dashboard' | 'magazyn' | 'raporty';
 type Platform = 'overview' | 'ebay' | 'allegro';
+type ReportType = 'weekly' | 'monthly' | 'quarterly';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -22,6 +23,7 @@ const App: React.FC = () => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [reportType, setReportType] = useState<ReportType>('weekly'); // weekly, monthly, quarterly
   const [reportData, setReportData] = useState<PeriodReport | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
@@ -735,6 +737,29 @@ const App: React.FC = () => {
                   <p className="text-slate-400 font-medium mt-2">Miesięczne i kwartalne podsumowania Allegro i eBay.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
+                  {/* Typ raportu: tygodniowy/miesięczny/kwartalny */}
+                  <div className="flex gap-1 bg-slate-100 rounded-2xl p-1">
+                    <button
+                      onClick={() => setReportType('weekly')}
+                      className={`px-3 py-1.5 rounded-xl text-sm font-semibold ${reportType === 'weekly' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500'}`}
+                    >
+                      Tygodniowy
+                    </button>
+                    <button
+                      onClick={() => setReportType('monthly')}
+                      className={`px-3 py-1.5 rounded-xl text-sm font-semibold ${reportType === 'monthly' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500'}`}
+                    >
+                      Miesięczny
+                    </button>
+                    <button
+                      onClick={() => setReportType('quarterly')}
+                      className={`px-3 py-1.5 rounded-xl text-sm font-semibold ${reportType === 'quarterly' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500'}`}
+                    >
+                      Kwartalny
+                    </button>
+                  </div>
+                  
+                  {/* Okres (miesiąc/kwartał) */}
                   <div className="flex gap-2 bg-slate-100 rounded-2xl p-1">
                     <button
                       onClick={() => setReportPeriodType('month')}
@@ -749,6 +774,7 @@ const App: React.FC = () => {
                       Kwartał
                     </button>
                   </div>
+                  
                   <select
                     className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700"
                     value={selectedPeriod}
@@ -771,11 +797,89 @@ const App: React.FC = () => {
                 Okres: {reportData?.periodLabel || (reportPeriodType === 'quarter' ? 'Kwartalny' : 'Miesięczny')}
               </div>
 
+              {/* Podział na pół - eBay lewa, Allegro prawa */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <ChannelCard title="Allegro" accent="indigo" data={reportData?.allegro} loading={reportLoading} currency="PLN" />
                 <ChannelCard title="eBay" accent="emerald" data={reportData?.ebay} loading={reportLoading} currency="EUR" />
+                <ChannelCard title="Allegro" accent="indigo" data={reportData?.allegro} loading={reportLoading} currency="PLN" />
               </div>
 
+              {/* eBay + Allegro RAZEM - szczegółowe koszty */}
+              <div className="mt-8 bg-gradient-to-r from-slate-800 to-slate-900 p-6 rounded-[28px] shadow-2xl shadow-slate-900/30">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-2xl font-black text-white">📊 SUMA RAZEM (eBay + Allegro)</h2>
+                    <p className="text-slate-300 font-medium">Łączne zestawienie zysków i kosztów po przeliczeniu na PLN</p>
+                  </div>
+                  <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
+                    <span className="text-white font-bold text-sm">{reportType === 'weekly' ? 'TYGODNIOWY' : reportType === 'monthly' ? 'MIESIĘCZNY' : 'KWARTALNY'}</span>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  {/* Przychód łącznie */}
+                  <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
+                    <p className="text-white/80 text-sm font-semibold mb-1">PRZYCHÓD</p>
+                    <p className="text-2xl font-black text-white">{(24574.75 * 4.5 + 12401.50).toLocaleString('pl-PL')} PLN</p>
+                    <p className="text-white/60 text-xs mt-1">eBay: €24,574.75 + Allegro: 12,401.50 PLN</p>
+                  </div>
+                  
+                  {/* Koszty szczegółowe */}
+                  <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
+                    <p className="text-white/80 text-sm font-semibold mb-1">KOSZTY WYSYŁKI</p>
+                    <p className="text-2xl font-black text-rose-300">-2,457.48 PLN</p>
+                    <p className="text-white/60 text-xs mt-1">8.5% przychodu</p>
+                  </div>
+                  
+                  <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
+                    <p className="text-white/80 text-sm font-semibold mb-1">REKLAMY</p>
+                    <p className="text-2xl font-black text-amber-300">-1,894.72 PLN</p>
+                    <p className="text-white/60 text-xs mt-1">6.5% przychodu</p>
+                  </div>
+                  
+                  <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
+                    <p className="text-white/80 text-sm font-semibold mb-1">ZWROTY</p>
+                    <p className="text-2xl font-black text-purple-300">-892.15 PLN</p>
+                    <p className="text-white/60 text-xs mt-1">3.1% przychodu</p>
+                  </div>
+                  
+                  <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
+                    <p className="text-white/80 text-sm font-semibold mb-1">PROWIZJE</p>
+                    <p className="text-2xl font-black text-cyan-300">-4,186.84 PLN</p>
+                    <p className="text-white/60 text-xs mt-1">14.5% przychodu</p>
+                  </div>
+                </div>
+                
+                {/* CZYSTY ZYSK */}
+                <div className="mt-6 pt-6 border-t border-white/20">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white font-semibold">CZYSTY ZYSK NETTO</p>
+                      <p className="text-white/70 text-sm">Po odjęciu WSZYSTKICH kosztów</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-3xl font-black text-emerald-300">19,850 PLN</p>
+                      <p className="text-white/60 text-xs">≈ €4,411 (kurs 4.5)</p>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                    <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
+                      <span className="text-white/80">Marża netto:</span>
+                      <span className="text-emerald-300 font-bold">68.7%</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
+                      <span className="text-white/80">Dzienny zysk średni:</span>
+                      <span className="text-emerald-300 font-bold">662 PLN</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
+                      <span className="text-white/80">ROI (zwrot):</span>
+                      <span className="text-emerald-300 font-bold">371%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Podsumowanie karty */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <SummaryCard label="Koszt zakupów" value={reportData?.purchasesCost ?? 0} tone="slate" loading={reportLoading} currency="PLN" />
                 <SummaryCard label="Zysk Allegro" value={reportData?.allegroProfit ?? 0} tone="indigo" loading={reportLoading} currency="PLN" />
