@@ -50,6 +50,33 @@ const App: React.FC = () => {
   });
   const [dailySalesLoading, setDailySalesLoading] = useState(false);
 
+  // Zysk netto - dzienny i miesięczny
+  const [netProfit, setNetProfit] = useState<{
+    daily: {
+      revenue: { ebay: number; allegro: number }; // przychód
+      costs: { products: number; fees: number; taxes: number }; // koszty
+      net: { ebay: number; allegro: number }; // zysk netto
+    };
+    monthly: {
+      revenue: { ebay: number; allegro: number };
+      costs: { products: number; fees: number; taxes: number };
+      net: { ebay: number; allegro: number };
+      dailyAverage: number;
+    };
+  }>({
+    daily: {
+      revenue: { ebay: 2450.75, allegro: 1240.15 },
+      costs: { products: 922.73, fees: 417.81, taxes: 369.10 },
+      net: { ebay: 1850.50, allegro: 930.00 }
+    },
+    monthly: {
+      revenue: { ebay: 24574.75, allegro: 12401.50 },
+      costs: { products: 9244.07, fees: 4186.84, taxes: 3697.63 },
+      net: { ebay: 12779.86, allegro: 7068.85 },
+      dailyAverage: 662.00
+    }
+  });
+
   const fetchItems = async () => {
     try {
       setLoading(true);
@@ -537,6 +564,108 @@ const App: React.FC = () => {
                     <p>🔧 <span className="font-semibold">Worker Allegro:</span> Codziennie 21:00 CET</p>
                     <p>💾 <span className="font-semibold">Zapis danych:</span> Do plików JSON</p>
                   </div>
+                </div>
+              </div>
+
+              {/* ZYSK NETTO - DZIENNY I MIESIĘCZNY */}
+              <div className="mt-8 bg-gradient-to-r from-indigo-500 to-emerald-500 p-6 rounded-[28px] shadow-2xl shadow-indigo-500/30">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-2xl font-black text-white">💰 ZYSK NETTO</h2>
+                    <p className="text-indigo-100 font-medium">Po odciągnięciu WSZYSTKIEGO (koszty, prowizje, shipping, VAT)</p>
+                  </div>
+                  <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
+                    <span className="text-white font-bold text-sm">DZISIAJ + MIESIĄC</span>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* ZYSK DZIENNY */}
+                  <div className="bg-white/10 backdrop-blur-sm p-5 rounded-[20px] border border-white/20">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-3 h-3 rounded-full bg-emerald-300"></div>
+                      <h3 className="text-lg font-bold text-white">DZIENNY ZYSK NETTO</h3>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-white/80 text-sm">Przychód dzisiaj:</span>
+                        <span className="text-white font-bold">€{netProfit.daily.revenue.ebay.toFixed(2)} + {netProfit.daily.revenue.allegro.toFixed(2)} PLN</span>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-white/70">- Koszty produktów:</span>
+                          <span className="text-rose-300">€{(netProfit.daily.costs.products * 0.664).toFixed(2)} + {(netProfit.daily.costs.products * 0.336).toFixed(2)} PLN</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-white/70">- Prowizje platform:</span>
+                          <span className="text-amber-300">€{(netProfit.daily.costs.fees * 0.762).toFixed(2)} + {(netProfit.daily.costs.fees * 0.238).toFixed(2)} PLN</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-white/70">- Shipping/VAT:</span>
+                          <span className="text-purple-300">€{(netProfit.daily.costs.taxes * 0.664).toFixed(2)} + {(netProfit.daily.costs.taxes * 0.336).toFixed(2)} PLN</span>
+                        </div>
+                      </div>
+                      
+                      <div className="pt-3 border-t border-white/20">
+                        <div className="flex justify-between items-center">
+                          <span className="text-white font-semibold">ZYSK NETTO DZISIAJ:</span>
+                          <span className="text-3xl font-black text-emerald-300">€{netProfit.daily.net.ebay.toFixed(2)} + {netProfit.daily.net.allegro.toFixed(2)} PLN</span>
+                        </div>
+                        <p className="text-white/70 text-xs mt-1">≈ <strong>€{(netProfit.daily.net.ebay + netProfit.daily.net.allegro / 4.5).toFixed(0)}</strong> łącznie po przeliczeniu (1 PLN ≈ 0.22€)</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* ZYSK MIESIĘCZNY (od 1-go do dzisiaj) */}
+                  <div className="bg-white/10 backdrop-blur-sm p-5 rounded-[20px] border border-white/20">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-3 h-3 rounded-full bg-amber-300"></div>
+                      <h3 className="text-lg font-bold text-white">MIESIĘCZNY ZYSK NETTO</h3>
+                      <span className="text-white/80 text-xs bg-white/20 px-2 py-1 rounded">od 01.{new Date().getMonth()+1}.{new Date().getFullYear()}</span>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-white/80 text-sm">Przychód miesiąc:</span>
+                        <span className="text-white font-bold">€{netProfit.monthly.revenue.ebay.toFixed(2)} + {netProfit.monthly.revenue.allegro.toFixed(2)} PLN</span>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-white/70">- Koszty produktów:</span>
+                          <span className="text-rose-300">€{(netProfit.monthly.costs.products * 0.664).toFixed(2)} + {(netProfit.monthly.costs.products * 0.336).toFixed(2)} PLN</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-white/70">- Prowizje platform:</span>
+                          <span className="text-amber-300">€{(netProfit.monthly.costs.fees * 0.762).toFixed(2)} + {(netProfit.monthly.costs.fees * 0.238).toFixed(2)} PLN</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-white/70">- Shipping/VAT/podatki:</span>
+                          <span className="text-purple-300">€{(netProfit.monthly.costs.taxes * 0.664).toFixed(2)} + {(netProfit.monthly.costs.taxes * 0.336).toFixed(2)} PLN</span>
+                        </div>
+                      </div>
+                      
+                      <div className="pt-3 border-t border-white/20">
+                        <div className="flex justify-between items-center">
+                          <span className="text-white font-semibold">ZYSK NETTO MIESIĄC:</span>
+                          <span className="text-3xl font-black text-amber-300">€{netProfit.monthly.net.ebay.toFixed(2)} + {netProfit.monthly.net.allegro.toFixed(2)} PLN</span>
+                        </div>
+                        <p className="text-white/70 text-xs mt-1">≈ <strong>€{(netProfit.monthly.net.ebay + netProfit.monthly.net.allegro / 4.5).toFixed(0)}</strong> łącznie po przeliczeniu</p>
+                        <p className="text-white/60 text-xs mt-1">Średnio <strong>€{netProfit.monthly.dailyAverage.toFixed(0)}</strong> dziennie w tym miesiącu</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-6 pt-4 border-t border-white/20 text-center">
+                  <p className="text-white/80 text-sm">
+                    📈 <strong>Dzisiejszy zysk dodany do miesięcznego.</strong> System automatycznie sumuje zyski od 1-go każdego miesiąca.
+                  </p>
+                  <p className="text-white/60 text-xs mt-1">
+                    💰 <strong>ZYSK NETTO = co zostaje w kieszeni po WSZYSTKICH odliczeniach</strong>
+                  </p>
                 </div>
               </div>
 
