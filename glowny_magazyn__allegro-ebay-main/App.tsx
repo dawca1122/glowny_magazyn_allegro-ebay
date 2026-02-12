@@ -879,22 +879,22 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* Summary Cards Below */}
+              {/* Summary Cards Below - REAL DATA */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
                 <div className="bg-white p-5 rounded-[20px] border border-slate-200 shadow-sm">
-                  <p className="text-sm font-semibold text-slate-500 mb-2">Koszt zakupów (miesiąc)</p>
-                  <p className="text-2xl font-black text-slate-900">€4,215.30</p>
-                  <p className="text-xs text-slate-500 mt-1">Średnio €140.51/dzień</p>
+                  <p className="text-sm font-semibold text-slate-500 mb-2">Koszty (miesiąc)</p>
+                  <p className="text-2xl font-black text-slate-900">{(netProfit.monthly.costs.products + netProfit.monthly.costs.fees + netProfit.monthly.costs.taxes).toLocaleString('pl-PL', {minimumFractionDigits: 2})} PLN</p>
+                  <p className="text-xs text-slate-500 mt-1">Produkty + opłaty + podatki</p>
                 </div>
                 <div className="bg-white p-5 rounded-[20px] border border-emerald-200 shadow-sm">
                   <p className="text-sm font-semibold text-emerald-600 mb-2">Zysk eBay (miesiąc)</p>
-                  <p className="text-2xl font-black text-emerald-900">€4,914.95</p>
-                  <p className="text-xs text-emerald-600 mt-1">+12.3% vs poprzedni miesiąc</p>
+                  <p className="text-2xl font-black text-emerald-900">€{netProfit.monthly.net.ebay.toFixed(2)}</p>
+                  <p className="text-xs text-emerald-600 mt-1">Dane z Dzidek API</p>
                 </div>
                 <div className="bg-white p-5 rounded-[20px] border border-indigo-200 shadow-sm">
-                  <p className="text-sm font-semibold text-indigo-600 mb-2">Zysk Allegro (dzisiaj)</p>
-                  <p className="text-2xl font-black text-indigo-900">~930 PLN</p>
-                  <p className="text-xs text-indigo-600 mt-1">Szacowany z 1,240.15 PLN przychodu</p>
+                  <p className="text-sm font-semibold text-indigo-600 mb-2">Zysk Allegro (miesiąc)</p>
+                  <p className="text-2xl font-black text-indigo-900">{netProfit.monthly.net.allegro.toFixed(2)} PLN</p>
+                  <p className="text-xs text-indigo-600 mt-1">Przychód: {netProfit.monthly.revenue.allegro.toFixed(2)} PLN</p>
                 </div>
               </div>
 
@@ -1021,12 +1021,12 @@ const App: React.FC = () => {
                 <ChannelCard title="Allegro" accent="indigo" data={reportData?.allegro} loading={reportLoading} currency="PLN" />
               </div>
 
-              {/* eBay + Allegro RAZEM - szczegółowe koszty */}
+              {/* eBay + Allegro RAZEM - dane z Dzidek API */}
               <div className="mt-8 bg-gradient-to-r from-slate-800 to-slate-900 p-6 rounded-[28px] shadow-2xl shadow-slate-900/30">
                 <div className="flex items-center justify-between mb-6">
                   <div>
                     <h2 className="text-2xl font-black text-white">📊 SUMA RAZEM (eBay + Allegro)</h2>
-                    <p className="text-slate-300 font-medium">Łączne zestawienie zysków i kosztów po przeliczeniu na PLN</p>
+                    <p className="text-slate-300 font-medium">Dane z Dzidek API - prawdziwe wartości</p>
                   </div>
                   <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
                     <span className="text-white font-bold text-sm">{reportType === 'weekly' ? 'TYGODNIOWY' : reportType === 'monthly' ? 'MIESIĘCZNY' : 'KWARTALNY'}</span>
@@ -1037,33 +1037,33 @@ const App: React.FC = () => {
                   {/* Przychód łącznie */}
                   <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
                     <p className="text-white/80 text-sm font-semibold mb-1">PRZYCHÓD</p>
-                    <p className="text-2xl font-black text-white">{(24574.75 * 4.5 + 12401.50).toLocaleString('pl-PL')} PLN</p>
-                    <p className="text-white/60 text-xs mt-1">eBay: €24,574.75 + Allegro: 12,401.50 PLN</p>
+                    <p className="text-2xl font-black text-white">{(netProfit.monthly.revenue.ebay * 4.5 + netProfit.monthly.revenue.allegro).toLocaleString('pl-PL', {minimumFractionDigits: 2})} PLN</p>
+                    <p className="text-white/60 text-xs mt-1">eBay: €{netProfit.monthly.revenue.ebay.toFixed(2)} + Allegro: {netProfit.monthly.revenue.allegro.toFixed(2)} PLN</p>
                   </div>
                   
                   {/* Koszty szczegółowe */}
                   <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
-                    <p className="text-white/80 text-sm font-semibold mb-1">KOSZTY WYSYŁKI</p>
-                    <p className="text-2xl font-black text-rose-300">-2,457.48 PLN</p>
-                    <p className="text-white/60 text-xs mt-1">8.5% przychodu</p>
+                    <p className="text-white/80 text-sm font-semibold mb-1">KOSZTY PRODUKTÓW</p>
+                    <p className="text-2xl font-black text-rose-300">-{netProfit.monthly.costs.products.toLocaleString('pl-PL', {minimumFractionDigits: 2})} PLN</p>
+                    <p className="text-white/60 text-xs mt-1">Zakupy towarów</p>
                   </div>
                   
                   <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
-                    <p className="text-white/80 text-sm font-semibold mb-1">REKLAMY</p>
-                    <p className="text-2xl font-black text-amber-300">-1,894.72 PLN</p>
-                    <p className="text-white/60 text-xs mt-1">6.5% przychodu</p>
+                    <p className="text-white/80 text-sm font-semibold mb-1">OPŁATY</p>
+                    <p className="text-2xl font-black text-amber-300">-{netProfit.monthly.costs.fees.toLocaleString('pl-PL', {minimumFractionDigits: 2})} PLN</p>
+                    <p className="text-white/60 text-xs mt-1">Prowizje platform</p>
                   </div>
                   
                   <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
-                    <p className="text-white/80 text-sm font-semibold mb-1">ZWROTY</p>
-                    <p className="text-2xl font-black text-purple-300">-892.15 PLN</p>
-                    <p className="text-white/60 text-xs mt-1">3.1% przychodu</p>
+                    <p className="text-white/80 text-sm font-semibold mb-1">PODATKI</p>
+                    <p className="text-2xl font-black text-purple-300">-{netProfit.monthly.costs.taxes.toLocaleString('pl-PL', {minimumFractionDigits: 2})} PLN</p>
+                    <p className="text-white/60 text-xs mt-1">VAT i inne</p>
                   </div>
                   
                   <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
-                    <p className="text-white/80 text-sm font-semibold mb-1">PROWIZJE</p>
-                    <p className="text-2xl font-black text-cyan-300">-4,186.84 PLN</p>
-                    <p className="text-white/60 text-xs mt-1">14.5% przychodu</p>
+                    <p className="text-white/80 text-sm font-semibold mb-1">SUMA KOSZTÓW</p>
+                    <p className="text-2xl font-black text-cyan-300">-{(netProfit.monthly.costs.products + netProfit.monthly.costs.fees + netProfit.monthly.costs.taxes).toLocaleString('pl-PL', {minimumFractionDigits: 2})} PLN</p>
+                    <p className="text-white/60 text-xs mt-1">Wszystkie koszty</p>
                   </div>
                 </div>
                 
@@ -1075,23 +1075,27 @@ const App: React.FC = () => {
                       <p className="text-white/70 text-sm">Po odjęciu WSZYSTKICH kosztów</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-3xl font-black text-emerald-300">19,850 PLN</p>
-                      <p className="text-white/60 text-xs">≈ €4,411 (kurs 4.5)</p>
+                      <p className="text-3xl font-black text-emerald-300">{(netProfit.monthly.net.ebay * 4.5 + netProfit.monthly.net.allegro).toLocaleString('pl-PL', {minimumFractionDigits: 0})} PLN</p>
+                      <p className="text-white/60 text-xs">≈ €{(netProfit.monthly.net.ebay + netProfit.monthly.net.allegro / 4.5).toFixed(0)} (kurs 4.5)</p>
                     </div>
                   </div>
                   
                   <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                     <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
                       <span className="text-white/80">Marża netto:</span>
-                      <span className="text-emerald-300 font-bold">68.7%</span>
+                      <span className="text-emerald-300 font-bold">{(() => {
+                        const totalRevenue = netProfit.monthly.revenue.ebay * 4.5 + netProfit.monthly.revenue.allegro;
+                        const totalNet = netProfit.monthly.net.ebay * 4.5 + netProfit.monthly.net.allegro;
+                        return totalRevenue > 0 ? ((totalNet / totalRevenue) * 100).toFixed(1) : '0';
+                      })()}%</span>
                     </div>
                     <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
                       <span className="text-white/80">Dzienny zysk średni:</span>
-                      <span className="text-emerald-300 font-bold">662 PLN</span>
+                      <span className="text-emerald-300 font-bold">{netProfit.monthly.dailyAverage.toFixed(0)} PLN</span>
                     </div>
                     <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
-                      <span className="text-white/80">ROI (zwrot):</span>
-                      <span className="text-emerald-300 font-bold">371%</span>
+                      <span className="text-white/80">Status:</span>
+                      <span className="text-emerald-300 font-bold">{(netProfit.monthly.net.ebay + netProfit.monthly.net.allegro) > 0 ? 'Aktywny' : 'Brak danych'}</span>
                     </div>
                   </div>
                 </div>

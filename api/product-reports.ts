@@ -71,22 +71,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       platform as string
     );
     
-    // Jeśli brak danych, zwróć mock dla demo
+    // Jeśli brak danych, zwróć puste (nie mock!)
     if (reports.length === 0) {
-      const mockReports = generateMockProductReports(
-        period as string,
-        reportType as string,
-        platform as string
-      );
-      
       return res.status(200).json({
         success: true,
         period,
         reportType,
         platform: platform || 'all',
-        products: mockReports,
-        total: calculateTotals(mockReports),
-        note: 'Mock data - podłącz eBay/Allegro API dla rzeczywistych danych'
+        products: [],
+        total: { revenue: 0, cost: 0, profit: 0, units: 0, margin: 0 },
+        note: 'Brak danych - połącz z Dzidek API dla prawdziwych danych z eBay/Allegro'
       });
     }
     
@@ -180,80 +174,9 @@ async function getProductReportsFromSheets(period: string, reportType: string, p
     return reports;
     
   } catch (error) {
-    console.warn('⚠️ Nie można pobrać danych z Google Sheets, używam mock danych:', error.message);
+    console.warn('⚠️ Nie można pobrać danych z Google Sheets:', error.message);
     return [];
   }
-}
-
-function generateMockProductReports(period: string, reportType: string, platform: string): ProductReport[] {
-  const platforms = platform === 'all' ? ['ebay', 'allegro'] : [platform as 'ebay' | 'allegro'];
-  const reports: ProductReport[] = [];
-  
-  const products = [
-    { id: 'IPHONE13', name: 'iPhone 13 128GB', cost: 500, price: 799 },
-    { id: 'MBAIR', name: 'MacBook Air M2', cost: 1200, price: 1499 },
-    { id: 'AIRPODS', name: 'AirPods Pro 2', cost: 150, price: 249 },
-    { id: 'IPAD', name: 'iPad 10th Gen', cost: 400, price: 599 },
-    { id: 'WATCH', name: 'Apple Watch SE', cost: 200, price: 299 },
-    { id: 'MACMINI', name: 'Mac Mini M2', cost: 600, price: 899 },
-    { id: 'IMAC', name: 'iMac 24"', cost: 1300, price: 1799 },
-    { id: 'BEATS', name: 'Beats Studio Pro', cost: 180, price: 299 },
-  ];
-  
-  const today = new Date().toISOString();
-  
-  platforms.forEach(plat => {
-    const currency = plat === 'ebay' ? 'EUR' : 'PLN';
-    const exchangeRate = plat === 'ebay' ? 1 : 4.5;
-    
-    products.forEach((product, index) => {
-      // Losowa sprzedaż w zależności od typu raportu
-      let unitsSold = 0;
-      switch(reportType) {
-        case 'weekly': unitsSold = Math.floor(Math.random() * 5) + 1; break;
-        case 'monthly': unitsSold = Math.floor(Math.random() * 20) + 5; break;
-        case 'quarterly': unitsSold = Math.floor(Math.random() * 60) + 15; break;
-        case 'yearly': unitsSold = Math.floor(Math.random() * 240) + 60; break;
-        default: unitsSold = Math.floor(Math.random() * 10) + 2;
-      }
-      
-      const revenue = unitsSold * product.price * exchangeRate;
-      const productCost = unitsSold * product.cost * exchangeRate;
-      const shippingCost = revenue * 0.08; // 8% przychodu
-      const platformFees = revenue * 0.12; // 12% przychodu
-      const adsCost = revenue * 0.05; // 5% przychodu
-      const returnsCost = revenue * 0.03; // 3% przychodu
-      const taxes = revenue * 0.23; // 23% VAT
-      const otherCosts = revenue * 0.02; // 2% inne
-      
-      const totalCosts = productCost + shippingCost + platformFees + adsCost + returnsCost + taxes + otherCosts;
-      const grossProfit = revenue - productCost;
-      const netProfit = revenue - totalCosts;
-      
-      reports.push({
-        productId: product.id,
-        productName: product.name,
-        platform: plat,
-        period: period || '2024-01',
-        reportType: (reportType as any) || 'monthly',
-        unitsSold,
-        revenue: Math.round(revenue),
-        productCost: Math.round(productCost),
-        shippingCost: Math.round(shippingCost),
-        platformFees: Math.round(platformFees),
-        adsCost: Math.round(adsCost),
-        returnsCost: Math.round(returnsCost),
-        taxes: Math.round(taxes),
-        otherCosts: Math.round(otherCosts),
-        grossProfit: Math.round(grossProfit),
-        netProfit: Math.round(netProfit),
-        currency,
-        generatedAt: today
-      });
-    });
-  });
-  
-  return reports;
 }
 
 function calculateTotals(reports: ProductReport[]) {
