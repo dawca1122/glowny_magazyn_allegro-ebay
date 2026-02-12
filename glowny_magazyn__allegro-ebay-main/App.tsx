@@ -104,18 +104,37 @@ const App: React.FC = () => {
 
   const fetchSales = async () => {
     try {
-      // Spróbuj pobrać z API
+      // 1. Najpierw spróbuj pobrać z Dzidka bezpośrednio
+      try {
+        const dzidekResponse = await fetch(apiEndpoints.dzidek.appData, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        
+        if (dzidekResponse.ok) {
+          const dzidekData = await dzidekResponse.json();
+          console.log('[Sales] Data from Dzidek:', dzidekData);
+          
+          if (dzidekData.daily || dzidekData.monthly) {
+            setNetProfit(dzidekData);
+            setSalesSummary({});
+            return; // Sukces - mamy dane z Dzidka
+          }
+        }
+      } catch (dzidekError) {
+        console.warn('[Sales] Dzidek unavailable, trying fallback...', dzidekError);
+      }
+      
+      // 2. Fallback na własne API (Vercel functions)
       const response = await fetch(apiEndpoints.salesSummary);
       if (response.ok) {
         const apiSummary = await response.json();
         setNetProfit(apiSummary);
-        // Also update salesSummary for compatibility
         setSalesSummary({});
       } else {
-        // Fallback na lokalny serwis
+        // 3. Ostateczny fallback - lokalny serwis
         const summary = await salesService.fetchSummary();
         setSalesSummary(summary);
-        // Also update netProfit for UI
         setNetProfit({
           daily: {
             revenue: { ebay: 0, allegro: 0 },
@@ -131,8 +150,7 @@ const App: React.FC = () => {
         });
       }
     } catch (err) {
-      console.error('[Sales] fetchSummary failed', err);
-      // Set empty data to avoid UI errors
+      console.warn('[Sales] All sources failed', err);
       setNetProfit({
         daily: {
           revenue: { ebay: 0, allegro: 0 },
@@ -252,19 +270,39 @@ const App: React.FC = () => {
     }
   };
 
-  // Pobierz dzienną sprzedaż z Allegro i eBay
+  // Pobierz dzienną sprzedaż z Allegro i eBay - najpierw Dzidek, potem fallback
   const fetchDailySales = async () => {
     try {
       setDailySalesLoading(true);
       
-      // Pobierz dane z lokalnego API
-      const response = await fetch(apiEndpoints.dailySales);
+      let data = null;
       
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+      // 1. Spróbuj pobrać z Dzidka
+      try {
+        const dzidekResponse = await fetch(apiEndpoints.dzidek.dailySales, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        
+        if (dzidekResponse.ok) {
+          data = await dzidekResponse.json();
+          console.log('[DailySales] Data from Dzidek:', data);
+        }
+      } catch (dzidekError) {
+        console.warn('[DailySales] Dzidek unavailable:', dzidekError);
       }
       
-      const data = await response.json();
+      // 2. Fallback na własne API
+      if (!data) {
+        const response = await fetch(apiEndpoints.dailySales);
+        if (response.ok) {
+          data = await response.json();
+        }
+      }
+      
+      if (!data || !data.allegro || !data.ebay) {
+        throw new Error('No valid data from any source');
+      }
       
       // Przekształć dane do formatu wymaganego przez komponent
       const allegroSales = data.allegro.map((item: any) => ({
@@ -297,11 +335,9 @@ const App: React.FC = () => {
       }
       
     } catch (error) {
-      console.warn('[DailySales] API unavailable, using fallback data:', error);
+      console.warn('[DailySales] All sources unavailable, using fallback:', error);
       
-      // Fallback na mock danych jeśli API nie działa - bez alertu
-      const today = new Date().toISOString().split('T')[0];
-      
+      // Fallback na mock danych
       const allegroSales = [
         { productName: 'iPhone 15 Pro Max 256GB', soldToday: 3 },
         { productName: 'Samsung Galaxy S24 Ultra', soldToday: 2 },

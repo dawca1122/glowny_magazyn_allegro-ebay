@@ -7,7 +7,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export const runtime = 'nodejs';
 
-const DZIDEK_URL = 'https://0e784df5af85aaaf-87-179-39-164.serveousercontent.com';
+const DZIDEK_URL = 'https://franchise-undefined-growth-valley.trycloudflare.com';
 const REQUEST_TIMEOUT = 60000;
 
 type WorkerType = 'allegro' | 'ebay';

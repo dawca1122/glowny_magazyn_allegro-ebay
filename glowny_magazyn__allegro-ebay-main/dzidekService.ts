@@ -55,7 +55,7 @@ class DzidekService {
       console.warn('[DzidekService] Status check failed:', error.message);
       return {
         online: false,
-        url: 'https://0e784df5af85aaaf-87-179-39-164.serveousercontent.com',
+        url: 'https://franchise-undefined-growth-valley.trycloudflare.com',
         workers: {
           allegro: { name: 'Allegro Worker', online: false, error: error.message },
           ebay: { name: 'eBay Worker', online: false, error: error.message }

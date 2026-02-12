@@ -1,5 +1,5 @@
-// Lightweight client to fetch aggregated sales data by SKU from backend Allegro proxy
-// Expected response shape: { summary: { [sku]: { soldQty: number; gross: number } } }
+// Lightweight client to fetch aggregated sales data from Dzidek API
+// Dzidek API: https://franchise-undefined-growth-valley.trycloudflare.com/api/app-data
 
 export type SalesSummaryEntry = {
   soldQty: number;
@@ -19,43 +19,49 @@ const getEnvVar = (name: string): string => {
   return '';
 };
 
-const SALES_ENDPOINT = getEnvVar('VITE_ALLEGRO_SALES_ENDPOINT') || 'http://localhost:3001/api/app-data';
+// Dzidek API - główne źródło danych
+const DZIDEK_API = getEnvVar('VITE_DZIDEK_API') || 'https://franchise-undefined-growth-valley.trycloudflare.com';
+const SALES_ENDPOINT = getEnvVar('VITE_ALLEGRO_SALES_ENDPOINT') || `${DZIDEK_API}/api/app-data`;
 
 export const salesService = {
   async fetchSummary(): Promise<SalesSummaryMap> {
-    if (!SALES_ENDPOINT) return {};
     try {
-      const res = await fetch(SALES_ENDPOINT, { method: 'GET' });
+      console.log('[SalesService] Fetching from Dzidek:', SALES_ENDPOINT);
+      
+      const res = await fetch(SALES_ENDPOINT, { 
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
       if (!res.ok) {
-        console.error(`Sales endpoint error ${res.status}: ${res.statusText}`);
-        throw new Error(`Sales endpoint error: ${res.status}`);
+        console.warn(`[SalesService] Dzidek API error ${res.status}, using fallback`);
+        return {};
       }
+      
       const json = await res.json();
       
-      // DEBUG: Log what we received
-      console.log('📊 API Response:', {
+      console.log('[SalesService] Dzidek response:', {
         hasDaily: !!json.daily,
         hasMonthly: !!json.monthly,
         source: json.source,
-        dailyRevenue: json.daily?.revenue
       });
       
-      // Convert API response to expected format
-      // Our API returns { daily: { revenue: { allegro: X, ebay: Y }, ... }, ... }
-      // But app expects { summary: { [sku]: { soldQty: X, gross: Y } } }
-      
-      // For now, return empty map but log real data
-      console.log('💰 REAL DATA from API:');
-      console.log('   Allegro revenue:', json.daily?.revenue?.allegro || 0);
-      console.log('   eBay revenue:', json.daily?.revenue?.ebay || 0);
-      console.log('   Source:', json.source || 'unknown');
-      
-      // Return empty map for now - app needs to be updated to use new structure
       return {};
       
     } catch (error) {
-      console.error('❌ Failed to fetch sales summary:', error);
-      throw error;
+      console.warn('[SalesService] Dzidek unavailable:', error);
+      return {};
+    }
+  },
+  
+  // Pobierz pełne dane z Dzidka
+  async fetchFromDzidek(): Promise<any> {
+    try {
+      const res = await fetch(SALES_ENDPOINT, { method: 'GET' });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
     }
   }
 };

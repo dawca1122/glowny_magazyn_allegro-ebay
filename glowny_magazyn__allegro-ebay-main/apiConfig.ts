@@ -1,6 +1,6 @@
 /**
  * API Configuration - centralized API endpoints
- * Uses relative URLs for Vercel deployment compatibility
+ * Frontend łączy się z API Dzidka (publiczny tunel)
  */
 
 const getEnvVar = (name: string): string => {
@@ -10,16 +10,32 @@ const getEnvVar = (name: string): string => {
   return '';
 };
 
-// Base URL for API - use relative path on Vercel, localhost for dev
+// Dzidek API URL - główne źródło danych
+const DZIDEK_API = getEnvVar('VITE_DZIDEK_API') || 'https://franchise-undefined-growth-valley.trycloudflare.com';
+
+// Local dev fallback
 const isDev = typeof window !== 'undefined' && (
   window.location.hostname === 'localhost' || 
   window.location.hostname === '127.0.0.1'
 );
 
+// Dla Vercel używamy relative paths do własnych API (które proxy do Dzidka)
+// Dla localhost używamy bezpośrednio Dzidka lub localhost:3001
 export const API_BASE = getEnvVar('VITE_API_BASE') || (isDev ? 'http://localhost:3001' : '');
 
-// API Endpoints
+// Dzidek endpoints - główne źródło prawdziwych danych
+export const dzidekEndpoints = {
+  appData: `${DZIDEK_API}/api/app-data`,
+  dailySales: `${DZIDEK_API}/api/daily-sales`,
+  salesSummary: `${DZIDEK_API}/api/sales-summary`,
+  status: `${DZIDEK_API}/api/status`,
+  workerAllegro: `${DZIDEK_API}/api/worker/allegro`,
+  workerEbay: `${DZIDEK_API}/api/worker/ebay`,
+};
+
+// API Endpoints - własne API (Vercel functions)
 export const apiEndpoints = {
+  // Własne endpointy (fallback/cache)
   salesSummary: `${API_BASE}/api/sales-summary`,
   dailySales: `${API_BASE}/api/daily-sales`,
   chartData: (period: string, platform: string) => 
@@ -32,6 +48,9 @@ export const apiEndpoints = {
   dzidekSync: `${API_BASE}/api/dzidek-sync`,
   dzidekStatus: `${API_BASE}/api/dzidek-status`,
   workerCommand: `${API_BASE}/api/worker-command`,
+  
+  // Bezpośrednie połączenie z Dzidkiem
+  dzidek: dzidekEndpoints,
 };
 
 export default apiEndpoints;
