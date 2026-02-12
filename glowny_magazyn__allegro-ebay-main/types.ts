@@ -141,3 +141,98 @@ export interface CombinedReport {
   generatedAt: string;
   note?: string;
 }
+
+// ==========================================
+// WIADOMOŚCI OD KLIENTÓW (eBay / Allegro)
+// ==========================================
+
+export type MessagePlatform = 'ebay' | 'allegro';
+export type MessageStatus = 'unread' | 'read' | 'replied' | 'archived';
+export type MessagePriority = 'low' | 'normal' | 'high' | 'urgent';
+
+export interface CustomerMessage {
+  id: string;                      // Unikalny ID wiadomości
+  platform: MessagePlatform;       // Skąd przyszła wiadomość
+  
+  // Dane klienta
+  customerId: string;              // ID klienta na platformie
+  customerName: string;            // Nazwa/nick klienta
+  customerEmail?: string;          // Email (jeśli dostępny)
+  
+  // Kontekst zamówienia
+  orderId?: string;                // ID zamówienia (jeśli dotyczy)
+  orderNumber?: string;            // Numer zamówienia czytelny
+  itemSku?: string;                // SKU produktu którego dotyczy
+  itemTitle?: string;              // Tytuł produktu
+  
+  // Treść wiadomości
+  subject: string;                 // Temat wiadomości
+  body: string;                    // Treść wiadomości
+  bodyHtml?: string;               // Treść HTML (jeśli dostępna)
+  
+  // Metadane
+  receivedAt: string;              // Kiedy otrzymano (ISO timestamp)
+  status: MessageStatus;           // Status wiadomości
+  priority: MessagePriority;       // Priorytet
+  
+  // Odpowiedzi
+  repliedAt?: string;              // Kiedy odpowiedziano
+  replyContent?: string;           // Treść odpowiedzi
+  
+  // Załączniki
+  attachments?: MessageAttachment[];
+  
+  // Flagi
+  isQuestion: boolean;             // Czy to pytanie o produkt
+  isComplaint: boolean;            // Czy to reklamacja/skarga
+  isReturn: boolean;               // Czy dotyczy zwrotu
+  requiresAction: boolean;         // Czy wymaga działania
+  
+  // Tagi/kategorie
+  tags?: string[];
+}
+
+export interface MessageAttachment {
+  id: string;
+  filename: string;
+  mimeType: string;
+  url?: string;
+  size?: number;
+}
+
+export interface MessageThread {
+  id: string;
+  platform: MessagePlatform;
+  customerId: string;
+  customerName: string;
+  orderId?: string;
+  subject: string;
+  messages: CustomerMessage[];
+  lastMessageAt: string;
+  unreadCount: number;
+  status: MessageStatus;
+}
+
+export interface MessagesStats {
+  total: number;
+  unread: number;
+  requiresAction: number;
+  byPlatform: {
+    ebay: { total: number; unread: number };
+    allegro: { total: number; unread: number };
+  };
+  byCategory: {
+    questions: number;
+    complaints: number;
+    returns: number;
+    other: number;
+  };
+}
+
+// Webhook payload dla wiadomości od workerów
+export interface MessageWebhookPayload {
+  from: 'ebay-worker' | 'allegro-worker';
+  action: 'new-message' | 'message-update' | 'bulk-messages';
+  data: CustomerMessage | CustomerMessage[];
+  timestamp: string;
+}

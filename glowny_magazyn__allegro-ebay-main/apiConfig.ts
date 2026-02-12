@@ -31,6 +31,7 @@ export const dzidekEndpoints = {
   status: `${DZIDEK_API}/api/status`,
   workerAllegro: `${DZIDEK_API}/api/worker/allegro`,
   workerEbay: `${DZIDEK_API}/api/worker/ebay`,
+  messages: `${DZIDEK_API}/api/messages`,
 };
 
 // API Endpoints - własne API (Vercel functions)
@@ -48,6 +49,7 @@ export const apiEndpoints = {
   dzidekSync: `${API_BASE}/api/dzidek-sync`,
   dzidekStatus: `${API_BASE}/api/dzidek-status`,
   workerCommand: `${API_BASE}/api/worker-command`,
+  messages: `${API_BASE}/api/messages`,
   
   // Bezpośrednie połączenie z Dzidkiem
   dzidek: dzidekEndpoints,
