@@ -1,9 +1,7 @@
-
 import React, { useState } from 'react';
-import { Send, CheckCircle, Clock, RefreshCw, Package, FileDown, Save, Upload } from 'lucide-react';
-import { DocumentStatus, InventoryItem, SyncPayload, SalesSummaryMap } from './types';
+import { Save, Plus, RefreshCw, Package, Image, Link2 } from 'lucide-react';
+import { InventoryItem, SalesSummaryMap } from './types';
 import { inventoryService } from './supabaseClient';
-import AllegroListingModal from './AllegroListingModal';
 
 interface Props {
   items: InventoryItem[];
@@ -12,448 +10,224 @@ interface Props {
   sales?: SalesSummaryMap;
 }
 
-const getEnvVar = (name: string): string => {
-  try {
-    const metaEnv = (import.meta as any).env;
-    if (metaEnv && metaEnv[name]) return metaEnv[name];
-    if (typeof process !== 'undefined' && process.env && process.env[name]) return process.env[name] as string;
-  } catch {}
-  return '';
-};
-
-const SYNC_TOKEN = getEnvVar('VITE_SYNC_TOKEN');
-const API_ENDPOINT = getEnvVar('VITE_API_ENDPOINT');
-
 const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {} }) => {
-  const [syncingSku, setSyncingSku] = useState<string | null>(null);
-  const [updatingSku, setUpdatingSku] = useState<string | null>(null);
-  const [stockInputs, setStockInputs] = useState<Record<string, { allegro: number; ebay: number }>>({});
-  const [docStatusOverrides, setDocStatusOverrides] = useState<Record<string, DocumentStatus>>({});
-  const [listingItem, setListingItem] = useState<InventoryItem | null>(null);
-  
-  // itemEdits przechowuje wszystkie tymczasowe zmiany w wierszu przed zapisem
-  const [itemEdits, setItemEdits] = useState<Record<string, Partial<Record<keyof InventoryItem, string>>>>({});
+  const [savingSku, setSavingSku] = useState<string | null>(null);
+  const [allegroSkuInputs, setAllegroSkuInputs] = useState<Record<string, string>>({});
 
-  const handleInputChange = (sku: string, platform: 'allegro' | 'ebay', value: string) => {
-    const numValue = parseInt(value) || 0;
-    setStockInputs(prev => ({
+  const handleAllegroSkuChange = (ean: string, value: string) => {
+    setAllegroSkuInputs(prev => ({
       ...prev,
-      [sku]: {
-        ...prev[sku] || { allegro: 0, ebay: 0 },
-        [platform]: numValue
-      }
+      [ean]: value
     }));
   };
 
-  const handleRowEdit = (sku: string, field: keyof InventoryItem, value: string) => {
-    setItemEdits(prev => ({
-      ...prev,
-      [sku]: {
-        ...prev[sku],
-        [field]: value
-      }
-    }));
-  };
+  const handleSaveAndAddToAllegro = async (item: InventoryItem) => {
+    const allegroSku = allegroSkuInputs[item.ean || item.sku] || item.allegro_sku || '';
+    
+    if (!allegroSku.trim()) {
+      onNotify('Wprowadź SKU Allegro przed zapisaniem.', 'error');
+      return;
+    }
 
-  const saveRowChanges = async (item: InventoryItem) => {
-    const edits = itemEdits[item.sku];
-    if (!edits) return;
-
-    setUpdatingSku(item.sku);
+    setSavingSku(item.sku);
     try {
-      const updates: Partial<InventoryItem> = {};
-      if (edits.allegro_price !== undefined) updates.allegro_price = parseFloat(edits.allegro_price);
-      if (edits.ebay_price !== undefined) updates.ebay_price = parseFloat(edits.ebay_price);
-      if (edits.item_cost !== undefined) updates.item_cost = parseFloat(edits.item_cost);
-      if (edits.total_stock !== undefined) updates.total_stock = parseInt(edits.total_stock);
-
-      await inventoryService.updateItem(item.sku, updates);
-      onNotify(`Dane dla SKU: ${item.sku} zostały pomyślnie zaktualizowane.`, 'success');
+      // Zapisz SKU Allegro do bazy
+      await inventoryService.updateItem(item.sku, { 
+        allegro_sku: allegroSku.trim(),
+        sync_status: 'pending'
+      });
       
-      // Wyczyść stan edycji dla tego wiersza
-      setItemEdits(prev => {
+      // TODO: Wywołaj API do dodania na Allegro
+      // Na razie tylko zapisujemy SKU
+      
+      onNotify(\`SKU Allegro "\${allegroSku}" zapisane dla EAN: \${item.ean || item.sku}\`, 'success');
+      
+      // Wyczyść input
+      setAllegroSkuInputs(prev => {
         const next = { ...prev };
-        delete next[item.sku];
+        delete next[item.ean || item.sku];
         return next;
       });
       
-      onRefresh();
-    } catch (err) {
-      onNotify('Błąd podczas zapisywania zmian w bazie.', 'error');
-    } finally {
-      setUpdatingSku(null);
-    }
-  };
-
-  const handleDocumentAction = async (item: InventoryItem) => {
-    const currentStatus: DocumentStatus = docStatusOverrides[item.sku] || item.document_status;
-    if (currentStatus !== 'Oczekuje') return;
-
-    try {
-      await inventoryService.updateItem(item.sku, { document_status: 'Pobrano', doc_status: 'Pobrano' as any });
-      setDocStatusOverrides(prev => ({ ...prev, [item.sku]: 'Pobrano' }));
-      onNotify(`Dokument dla SKU: ${item.sku} został pobrany. Status zaktualizowany.`, 'success');
-      onRefresh();
-    } catch (err) {
-      onNotify('Błąd aktualizacji dokumentu w Supabase.', 'error');
-    }
-  };
-
-  const handleSendAllegro = async (item: InventoryItem) => {
-    const amount = stockInputs[item.sku]?.allegro || 0;
-
-    if (amount <= 0) {
-      onNotify('Wprowadź ilość towaru do wysłania.', 'error');
-      return;
-    }
-
-    if (amount > item.total_stock) {
-      onNotify('Brak wystarczającej ilości towaru w magazynie!', 'error');
-      return;
-    }
-
-    if (!API_ENDPOINT) {
-      console.error('[Sync] Missing VITE_API_ENDPOINT environment variable.');
-      onNotify('Brak skonfigurowanego endpointu API dla synchronizacji.', 'error');
-      return;
-    }
-
-    if (!SYNC_TOKEN) {
-      console.error('[Sync] Missing VITE_SYNC_TOKEN environment variable.');
-      onNotify('Brak tokenu synchronizacji.', 'error');
-      return;
-    }
-
-    const cleanSku = item.sku.replace(/^SKU:\s*/i, '').trim();
-
-    setSyncingSku(item.sku);
-    try {
-      const payload: SyncPayload = {
-        items: [{ sku: cleanSku, stock_warehouse: amount }]
-      };
-
-      const response = await fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-sync-token': SYNC_TOKEN
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const rawText = await response.text();
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${rawText || 'Unknown error'}`);
-      }
-
-      let parsed: any = null;
-      try {
-        parsed = rawText ? JSON.parse(rawText) : null;
-      } catch (e) {
-        console.error('[Sync] Failed to parse response JSON:', e);
-      }
-
-      const summary = parsed?.summary;
-      const result = parsed?.results?.[0];
-
-      if (summary?.updated >= 1) {
-        const newStock = Math.max(0, item.total_stock - amount);
-        await inventoryService.updateItem(item.sku, { total_stock: newStock });
-        onNotify(`Wysłano ${amount} szt. SKU ${cleanSku}. API updated=${summary.updated}${summary.not_found ? `, not_found=${summary.not_found}` : ''}.`, 'success');
-      } else {
-        onNotify(`Brak aktualizacji dla SKU ${cleanSku}. Odpowiedź API: ${rawText}`, 'error');
-      }
-
-      // wyczyść input po udanym wywołaniu niezależnie od parsowania
-      setStockInputs(prev => {
-        const next = { ...prev };
-        if (next[item.sku]) next[item.sku].allegro = 0;
-        return next;
-      });
-
-      // jeśli API potwierdziło aktualizację lub przynajmniej przyjęło żądanie
       onRefresh();
     } catch (err: any) {
-      onNotify(`Błąd synchronizacji z API Allegro: ${err?.message || 'Nieznany błąd'}`, 'error');
+      onNotify(\`Błąd zapisu: \${err?.message || 'Nieznany błąd'}\`, 'error');
     } finally {
-      setSyncingSku(null);
+      setSavingSku(null);
     }
   };
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left border-collapse min-w-[1300px]">
-        <thead>
-          <tr className="bg-slate-50 border-b border-slate-200">
-            <th className="px-6 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Produkt / SKU</th>
-            <th className="px-6 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Zakup / Dok.</th>
-            <th className="px-6 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Status Dok.</th>
-            <th className="px-6 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Koszt Zakupu</th>
-            <th className="px-6 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Stan Magazynu</th>
-            <th className="px-6 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Allegro (Sync)</th>
-            <th className="px-6 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">eBay (Sync)</th>
-            <th className="px-6 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Ceny & Zyski</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {items.map((item) => {
-            const rowEdit = itemEdits[item.sku] || {};
-            const effectiveDocumentStatus = docStatusOverrides[item.sku] || item.document_status;
-            
-            // Wartości do obliczeń z uwzględnieniem edycji w czasie rzeczywistym
-            const effectiveCost = rowEdit.item_cost !== undefined ? parseFloat(rowEdit.item_cost) || 0 : item.item_cost;
-            const effectiveStock = rowEdit.total_stock !== undefined ? parseInt(rowEdit.total_stock) || 0 : item.total_stock;
-            const effectiveAllegroPrice = rowEdit.allegro_price !== undefined ? parseFloat(rowEdit.allegro_price) || 0 : item.allegro_price;
-            const effectiveEbayPrice = rowEdit.ebay_price !== undefined ? parseFloat(rowEdit.ebay_price) || 0 : item.ebay_price;
-            
-            const allegroProfit = effectiveAllegroPrice - effectiveCost;
-            const ebayProfit = effectiveEbayPrice - effectiveCost;
-            const totalUnitProfit = allegroProfit + ebayProfit;
+      {/* Header */}
+      <div className="grid grid-cols-[1fr_auto_1fr] gap-0 bg-slate-800 text-white rounded-t-2xl">
+        <div className="px-6 py-4 text-center">
+          <span className="text-lg font-black tracking-wider">eBay</span>
+        </div>
+        <div className="px-6 py-4 text-center bg-indigo-600 border-x-4 border-indigo-400">
+          <span className="text-lg font-black tracking-wider">EAN</span>
+        </div>
+        <div className="px-6 py-4 text-center">
+          <span className="text-lg font-black tracking-wider">Allegro</span>
+        </div>
+      </div>
 
-            const salesInfo = sales[item.sku] || sales[item.sku.replace(/^SKU:\s*/i, '').trim()] || { soldQty: 0, gross: 0 };
-            const shipping = salesInfo.shippingCost || 0;
-            const ads = salesInfo.adsCost || 0;
-            const fees = salesInfo.feeCost || 0;
-            const grossRevenue = salesInfo.gross || 0;
-            const soldQty = salesInfo.soldQty || 0;
-            const grossProfit = grossRevenue - shipping - ads - fees;
-            const netSalesProfit = grossProfit - soldQty * effectiveCost;
-            
-            const isSyncing = syncingSku === item.sku;
-            const isUpdating = updatingSku === item.sku;
-            const hasChanges = Object.keys(rowEdit).length > 0;
+      {/* Column Headers */}
+      <div className="grid grid-cols-[1fr_auto_1fr] gap-0 bg-slate-100 border-b-2 border-slate-200">
+        {/* eBay columns */}
+        <div className="grid grid-cols-[60px_100px_60px_1fr] gap-2 px-4 py-3">
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Zdjęcie</span>
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">SKU</span>
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider text-center">Ilość</span>
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Tytuł eBay</span>
+        </div>
+        
+        {/* EAN column */}
+        <div className="px-6 py-3 flex items-center justify-center bg-indigo-50 border-x-2 border-indigo-200 min-w-[160px]">
+          <span className="text-[10px] font-black text-indigo-600 uppercase tracking-wider">Kod EAN</span>
+        </div>
+        
+        {/* Allegro columns */}
+        <div className="grid grid-cols-[120px_140px_60px_1fr] gap-2 px-4 py-3">
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">SKU Allegro</span>
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider text-center">Akcja</span>
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider text-center">Ilość</span>
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Tytuł Allegro</span>
+        </div>
+      </div>
 
-            return (
-              <tr key={item.sku} className="hover:bg-indigo-50/30 transition-all duration-300 group">
-                <td className="px-6 py-6">
-                  <div className="flex flex-col gap-1.5">
-                    <span className="font-bold text-slate-800 text-sm line-clamp-1">{item.name}</span>
-                    <span className="text-[9px] text-indigo-500 font-black tracking-widest bg-indigo-50 w-fit px-2 py-1 rounded-md uppercase border border-indigo-100">{item.sku}</span>
-                  </div>
-                </td>
+      {/* Data Rows */}
+      <div className="divide-y divide-slate-100">
+        {items.map((item) => {
+          const ean = item.ean || '-';
+          const isSaving = savingSku === item.sku;
+          const allegroSkuValue = allegroSkuInputs[item.ean || item.sku] ?? item.allegro_sku ?? '';
+          const hasAllegroListing = !!item.allegro_listing_id;
+          const isLinked = !!item.allegro_sku;
 
-                <td className="px-6 py-6">
-                  <div className="flex flex-col gap-1">
-                    <select 
-                      defaultValue={item.purchase_type}
-                      onChange={(e) => inventoryService.updateItem(item.sku, { purchase_type: e.target.value as any })}
-                      className="text-xs bg-transparent border-none p-0 focus:ring-0 text-slate-700 font-bold cursor-pointer hover:text-indigo-600 transition-colors"
-                    >
-                      <option value="Faktura">Faktura</option>
-                      <option value="Gotówka">Gotówka</option>
-                    </select>
-                    <button 
-                      onClick={() => handleDocumentAction(item)}
-                      className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-indigo-600 transition-all font-medium"
-                    >
-                      <FileDown className="w-3 h-3" />
-                      {item.document_type}
-                    </button>
-                  </div>
-                </td>
+          return (
+            <div 
+              key={item.sku} 
+              className={\`grid grid-cols-[1fr_auto_1fr] gap-0 hover:bg-slate-50 transition-colors \${
+                isLinked ? 'bg-emerald-50/30' : ''
+              }\`}
+            >
+              {/* eBay Side (Left) */}
+              <div className="grid grid-cols-[60px_100px_60px_1fr] gap-2 px-4 py-4 items-center border-r border-slate-100">
+                {/* Zdjęcie */}
+                <div className="w-12 h-12 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
+                  {item.image_url ? (
+                    <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <Image className="w-5 h-5 text-slate-300" />
+                  )}
+                </div>
+                
+                {/* SKU eBay */}
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-100 truncate">
+                    {item.ebay_sku || item.sku}
+                  </span>
+                </div>
+                
+                {/* Ilość eBay */}
+                <div className="text-center">
+                  <span className={\`text-sm font-black \${(item.ebay_stock ?? item.total_stock) < 5 ? 'text-rose-500' : 'text-slate-700'}\`}>
+                    {item.ebay_stock ?? item.total_stock}
+                  </span>
+                </div>
+                
+                {/* Tytuł eBay */}
+                <div className="truncate">
+                  <span className="text-sm text-slate-700 font-medium line-clamp-2">
+                    {item.ebay_title || item.name}
+                  </span>
+                </div>
+              </div>
 
-                <td className="px-6 py-6">
-                  <div className="flex items-center">
-                    {effectiveDocumentStatus === 'Pobrano' ? (
-                      <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700 uppercase tracking-wider shadow-sm shadow-emerald-200/50">
-                        <CheckCircle className="w-3 h-3" /> Pobrany
-                      </span>
+              {/* EAN (Center) */}
+              <div className="px-4 py-4 flex items-center justify-center bg-indigo-50/50 border-x-2 border-indigo-100 min-w-[160px]">
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-xs font-black text-indigo-700 bg-indigo-100 px-3 py-2 rounded-xl border-2 border-indigo-200 font-mono tracking-wider">
+                    {ean}
+                  </span>
+                  {isLinked && (
+                    <span className="flex items-center gap-1 text-[9px] text-emerald-600 font-bold">
+                      <Link2 className="w-3 h-3" /> Połączono
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Allegro Side (Right) */}
+              <div className="grid grid-cols-[120px_140px_60px_1fr] gap-2 px-4 py-4 items-center border-l border-slate-100">
+                {/* SKU Allegro (input) */}
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Wpisz SKU..."
+                    value={allegroSkuValue}
+                    onChange={(e) => handleAllegroSkuChange(item.ean || item.sku, e.target.value)}
+                    disabled={hasAllegroListing}
+                    className={\`w-full px-2 py-1.5 text-xs font-bold border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all \${
+                      hasAllegroListing 
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-not-allowed' 
+                        : 'bg-white border-slate-200 text-slate-700'
+                    }\`}
+                  />
+                </div>
+                
+                {/* Przycisk Zapisz i Dodaj */}
+                <div>
+                  <button
+                    onClick={() => handleSaveAndAddToAllegro(item)}
+                    disabled={isSaving || hasAllegroListing}
+                    className={\`w-full px-3 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 transition-all \${
+                      hasAllegroListing
+                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200 cursor-not-allowed'
+                        : isSaving
+                        ? 'bg-orange-100 text-orange-600 animate-pulse'
+                        : 'bg-orange-500 text-white hover:bg-orange-600 hover:shadow-lg hover:shadow-orange-500/30 active:scale-95'
+                    }\`}
+                  >
+                    {isSaving ? (
+                      <><RefreshCw className="w-3 h-3 animate-spin" /> Zapisuję...</>
+                    ) : hasAllegroListing ? (
+                      <><span className="text-emerald-600">✓</span> Dodano</>
                     ) : (
-                      <button
-                        onClick={() => handleDocumentAction(item)}
-                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-amber-100 text-amber-700 uppercase tracking-wider shadow-sm shadow-amber-200/50 hover:bg-amber-200 transition-colors"
-                      >
-                        <Clock className="w-3 h-3" /> Oczekuje
-                      </button>
+                      <><Save className="w-3 h-3" /> <Plus className="w-3 h-3" /> Zapisz & Dodaj</>
                     )}
-                  </div>
-                </td>
+                  </button>
+                </div>
+                
+                {/* Ilość Allegro */}
+                <div className="text-center">
+                  <span className={\`text-sm font-black \${(item.allegro_stock ?? 0) < 5 ? 'text-rose-500' : 'text-slate-700'}\`}>
+                    {item.allegro_stock ?? '-'}
+                  </span>
+                </div>
+                
+                {/* Tytuł Allegro */}
+                <div className="truncate">
+                  <span className={\`text-sm font-medium line-clamp-2 \${item.allegro_title ? 'text-slate-700' : 'text-slate-300 italic'}\`}>
+                    {item.allegro_title || 'Brak ogłoszenia'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
-                {/* Kolumna Koszt Zakupu */}
-                <td className="px-6 py-6 text-right">
-                  <div className="flex justify-end items-center gap-1.5">
-                    <input 
-                      type="number"
-                      step="0.01"
-                      value={rowEdit.item_cost ?? item.item_cost}
-                      onChange={(e) => handleRowEdit(item.sku, 'item_cost', e.target.value)}
-                      className={`w-24 px-2 py-1.5 text-right text-sm font-black rounded-xl border focus:outline-none transition-all ${
-                        rowEdit.item_cost !== undefined ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-100 bg-slate-50/50'
-                      }`}
-                    />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">PLN</span>
-                  </div>
-                </td>
-
-                {/* Kolumna Stan Magazynu */}
-                <td className="px-6 py-6 text-right">
-                  <div className="flex justify-end items-center gap-1.5">
-                    <input 
-                      type="number"
-                      value={rowEdit.total_stock ?? item.total_stock}
-                      onChange={(e) => handleRowEdit(item.sku, 'total_stock', e.target.value)}
-                      className={`w-20 px-2 py-1.5 text-right text-sm font-black rounded-xl border focus:outline-none transition-all ${
-                        rowEdit.total_stock !== undefined ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-100 bg-slate-50/50'
-                      } ${effectiveStock < 5 ? 'text-rose-500' : 'text-slate-800'}`}
-                    />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">szt</span>
-                  </div>
-                </td>
-
-                <td className="px-6 py-6">
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => setListingItem(item)}
-                      disabled={item.total_stock < 5}
-                      className={`px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all ${
-                        item.total_stock < 5
-                          ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
-                          : 'bg-white border-indigo-200 text-indigo-700 hover:-translate-y-0.5 hover:shadow-md'
-                      }`}
-                    >
-                      <Upload className="w-4 h-4" />
-                      Wystaw na Allegro
-                    </button>
-                    <input 
-                      type="number" 
-                      placeholder="0"
-                      min="0"
-                      value={stockInputs[item.sku]?.allegro || ''}
-                      onChange={(e) => handleInputChange(item.sku, 'allegro', e.target.value)}
-                      className="w-16 px-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-4 focus:ring-orange-500/10 focus:border-orange-400 focus:outline-none font-bold transition-all"
-                    />
-                    <button 
-                      onClick={() => handleSendAllegro(item)}
-                      disabled={isSyncing}
-                      className={`p-2.5 rounded-xl flex items-center justify-center transition-all ${
-                        isSyncing ? 'bg-slate-100 text-slate-400 animate-pulse' : 'bg-orange-500 text-white hover:bg-orange-600 hover:shadow-lg hover:shadow-orange-500/30 active:scale-95'
-                      }`}
-                    >
-                      {isSyncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </td>
-
-                <td className="px-6 py-6">
-                  <div className="flex items-center gap-3 opacity-30 group-hover:opacity-100 transition-all duration-500">
-                    <input 
-                      type="number" 
-                      placeholder="0"
-                      className="w-16 px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none font-bold bg-slate-50 cursor-not-allowed"
-                      disabled
-                    />
-                    <button className="p-2.5 bg-blue-600 text-white rounded-xl shadow-md cursor-not-allowed opacity-50">
-                      <Send className="w-4 h-4" />
-                    </button>
-                  </div>
-                </td>
-
-                <td className="px-6 py-6 text-right">
-                  <div className="flex flex-col gap-2">
-                    {/* Allegro Price Entry */}
-                    <div className="flex justify-end items-center gap-2">
-                      <span className="text-[9px] text-slate-400 font-black uppercase">Allegro:</span>
-                      <input 
-                        type="number"
-                        step="0.01"
-                        value={rowEdit.allegro_price ?? item.allegro_price}
-                        onChange={(e) => handleRowEdit(item.sku, 'allegro_price', e.target.value)}
-                        className={`w-20 px-2 py-1 text-xs font-bold text-right border rounded-lg focus:outline-none transition-all ${
-                          rowEdit.allegro_price !== undefined ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-100 bg-slate-50/50'
-                        }`}
-                      />
-                      <span className={`text-[10px] font-bold w-12 ${allegroProfit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {allegroProfit >= 0 ? '+' : ''}{allegroProfit.toFixed(1)}
-                      </span>
-                    </div>
-
-                    {/* eBay Price Entry */}
-                    <div className="flex justify-end items-center gap-2">
-                      <span className="text-[9px] text-slate-400 font-black uppercase">eBay:</span>
-                      <input 
-                        type="number"
-                        step="0.01"
-                        value={rowEdit.ebay_price ?? item.ebay_price}
-                        onChange={(e) => handleRowEdit(item.sku, 'ebay_price', e.target.value)}
-                        className={`w-20 px-2 py-1 text-xs font-bold text-right border rounded-lg focus:outline-none transition-all ${
-                          rowEdit.ebay_price !== undefined ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-100 bg-slate-50/50'
-                        }`}
-                      />
-                      <span className={`text-[10px] font-bold w-12 ${ebayProfit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {ebayProfit >= 0 ? '+' : ''}{ebayProfit.toFixed(1)}
-                      </span>
-                    </div>
-
-                    {/* Total Profit & Save Action */}
-                    <div className="flex items-center justify-end gap-3 mt-1 pt-1 border-t border-slate-100">
-                      {hasChanges && (
-                        <button 
-                          onClick={() => saveRowChanges(item)}
-                          disabled={isUpdating}
-                          className="p-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg transition-all animate-pulse shadow-md shadow-indigo-500/20"
-                          title="Zapisz wszystkie zmiany dla tego towaru"
-                        >
-                          {isUpdating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                        </button>
-                      )}
-                      <div className="text-right space-y-0.5">
-                        <div>
-                          <span className="text-[9px] text-slate-400 font-black uppercase tracking-tighter mr-1">Suma Zysku:</span>
-                          <span className="text-sm font-black text-indigo-600">
-                            {(totalUnitProfit * effectiveStock).toFixed(2)}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-slate-500 leading-4 space-y-0.5 text-right">
-                          <div>
-                            <span className="font-black uppercase tracking-tighter mr-1">Sprzedano:</span>
-                            <span className="font-bold text-slate-700 mr-2">{soldQty} szt</span>
-                            <span className="font-black uppercase tracking-tighter mr-1">Przychód:</span>
-                            <span className="font-bold text-emerald-600 mr-2">{grossRevenue.toFixed(2)}</span>
-                          </div>
-                          <div className="text-[10px] text-slate-500">
-                            <span className="mr-2">Wysyłka: <span className="font-semibold text-slate-700">{shipping.toFixed(2)}</span></span>
-                            <span className="mr-2">Reklamy: <span className="font-semibold text-slate-700">{ads.toFixed(2)}</span></span>
-                            <span className="mr-2">Prowizje: <span className="font-semibold text-slate-700">{fees.toFixed(2)}</span></span>
-                          </div>
-                          <div>
-                            <span className="font-black uppercase tracking-tighter mr-1">Zysk brutto:</span>
-                            <span className={`${grossProfit >= 0 ? 'text-indigo-600' : 'text-rose-500'} font-bold mr-3`}>
-                              {grossProfit.toFixed(2)}
-                            </span>
-                            <span className="font-black uppercase tracking-tighter mr-1">Zysk netto:</span>
-                            <span className={`${netSalesProfit >= 0 ? 'text-emerald-600' : 'text-rose-500'} font-bold`}>
-                              {netSalesProfit.toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      {/* Empty State */}
       {items.length === 0 && (
         <div className="py-32 flex flex-col items-center justify-center text-slate-400">
           <div className="bg-slate-50 p-8 rounded-[32px] border border-slate-100 mb-6">
-            <Package className="w-16 h-16 opacity-5" />
+            <Package className="w-16 h-16 opacity-20" />
           </div>
           <p className="text-lg font-black text-slate-300">Magazyn jest obecnie pusty.</p>
+          <p className="text-sm text-slate-400 mt-2">Dodaj produkty z eBay aby rozpocząć synchronizację z Allegro.</p>
         </div>
-      )}
-
-      {listingItem && (
-        <AllegroListingModal
-          item={listingItem}
-          onClose={() => setListingItem(null)}
-          onNotify={onNotify}
-          onListed={() => {
-            setListingItem(null);
-            onRefresh();
-          }}
-        />
       )}
     </div>
   );

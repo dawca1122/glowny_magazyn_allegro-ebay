@@ -16,6 +16,18 @@ export interface InventoryItem {
   allegro_price: number;
   ebay_price: number;
   created_at?: string;
+  
+  // Nowe pola do synchronizacji eBay <-> Allegro
+  ean?: string;                    // Kod EAN - klucz łączący eBay z Allegro
+  image_url?: string;              // URL zdjęcia produktu
+  ebay_sku?: string;               // SKU na eBay
+  ebay_title?: string;             // Tytuł ogłoszenia eBay
+  ebay_stock?: number;             // Stan magazynowy eBay
+  allegro_sku?: string;            // SKU na Allegro (do wpisania ręcznie)
+  allegro_title?: string;          // Tytuł ogłoszenia Allegro
+  allegro_stock?: number;          // Stan magazynowy Allegro
+  allegro_listing_id?: string;     // ID ogłoszenia Allegro (jeśli już wystawione)
+  sync_status?: 'not_synced' | 'pending' | 'synced';  // Status synchronizacji
 }
 
 export interface SyncPayload {
