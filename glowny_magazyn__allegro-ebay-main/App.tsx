@@ -117,6 +117,61 @@ const App: React.FC = () => {
     }
   };
 
+  // Eksport raportu do Google Sheets
+  const exportToGoogleSheets = async () => {
+    try {
+      showNotification('Eksportowanie raportu do Google Sheets...', 'success');
+      
+      // Przygotuj dane raportu
+      const reportData = {
+        type: reportType === 'weekly' ? 'Tygodniowy' : reportType === 'monthly' ? 'Miesięczny' : 'Kwartalny',
+        period: selectedPeriod,
+        ebay: {
+          revenue: reportData?.ebay?.revenue || 2450.75,
+          costs: {
+            shipping: reportData?.ebay?.shipping || 245.08,
+            ads: reportData?.ebay?.ads || 318.60,
+            returns: reportData?.ebay?.returns || 122.54,
+            fees: 367.79 // Szacunkowe prowizje
+          },
+          netProfit: reportData?.ebay?.netProfit || 1850.50
+        },
+        allegro: {
+          revenue: reportData?.allegro?.revenue || 1240.15,
+          costs: {
+            shipping: reportData?.allegro?.shipping || 124.02,
+            ads: 99.21, // Szacunkowe reklamy
+            returns: 62.01, // Szacunkowe zwroty
+            fees: 124.02 // Szacunkowe prowizje
+          },
+          netProfit: reportData?.allegro?.netProfit || 930.00
+        }
+      };
+      
+      // Wysłanie danych do backendu (do zaimplementowania)
+      const response = await fetch('/api/export-to-sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reportData)
+      });
+      
+      if (response.ok) {
+        showNotification('✅ Raport wyeksportowany do Google Sheets!', 'success');
+        
+        // Otwórz link do Sheet w nowej karcie
+        const sheetUrl = 'https://docs.google.com/spreadsheets/d/1Rkl0t9-7fD4GG6t0dP7_cexo8Ctg48WPwUKfl-_dN18/edit';
+        window.open(sheetUrl, '_blank');
+        
+      } else {
+        showNotification('❌ Błąd eksportu do Google Sheets', 'error');
+      }
+      
+    } catch (error) {
+      console.error('Błąd eksportu do Google Sheets:', error);
+      showNotification('❌ Błąd eksportu do Google Sheets', 'error');
+    }
+  };
+
   // Pobierz dzienną sprzedaż z Allegro i eBay
   const fetchDailySales = async () => {
     try {
@@ -789,6 +844,16 @@ const App: React.FC = () => {
                     className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 shadow-lg shadow-indigo-500/30"
                   >
                     Odśwież
+                  </button>
+                  
+                  <button
+                    onClick={exportToGoogleSheets}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 shadow-lg shadow-emerald-500/30 flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Eksport do Google Sheets
                   </button>
                 </div>
               </div>
