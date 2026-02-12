@@ -13,70 +13,6 @@ const app = express();
 const PORT = 3001;
 
 app.use(cors());
-
-// LOGGING MIDDLEWARE - musi być PRZED body parserem!
-const LOG_FILE = '/home/dawca/.openclaw/workspace/logs/api-requests.log';
-
-app.use((req, res, next) => {
-  const timestamp = new Date().toISOString();
-  
-  // Loguj tylko API requests
-  if (req.originalUrl.startsWith('/api/')) {
-    const logEntry = `🚨 ${timestamp} ${req.method} ${req.originalUrl} from ${req.ip}\n`;
-    
-    // ZAPISZ DO PLIKU
-    fs.appendFileSync(LOG_FILE, logEntry, 'utf8');
-    
-    // TEŻ DO KONSOLI
-    console.log('='.repeat(80));
-    console.log(`🚨 ${timestamp} ${req.method} ${req.originalUrl}`);
-    console.log(`   IP: ${req.ip}`);
-    console.log(`   Headers:`, req.headers);
-    
-    // Zbierz body data
-    let body = [];
-    req.on('data', chunk => {
-      body.push(chunk);
-    });
-    
-    req.on('end', () => {
-      const rawBody = Buffer.concat(body).toString();
-      const bodyLog = `   Raw Body: ${rawBody.substring(0, 500)}${rawBody.length > 500 ? '...' : ''}\n`;
-      
-      // ZAPISZ BODY DO PLIKU
-      fs.appendFileSync(LOG_FILE, bodyLog, 'utf8');
-      
-      // TEŻ DO KONSOLI
-      console.log(`   Raw Body: ${rawBody.substring(0, 500)}${rawBody.length > 500 ? '...' : ''}`);
-      
-      // Przywróć body dla następnych middleware
-      if (rawBody) {
-        try {
-          req.body = JSON.parse(rawBody);
-          const parsedLog = `   Parsed Body: ${JSON.stringify(req.body)}\n`;
-          fs.appendFileSync(LOG_FILE, parsedLog, 'utf8');
-          console.log(`   Parsed Body:`, req.body);
-        } catch (e) {
-          req.body = rawBody;
-        }
-      }
-      
-      fs.appendFileSync(LOG_FILE, '='.repeat(80) + '\n', 'utf8');
-      console.log('='.repeat(80));
-      next();
-    });
-    
-    req.on('error', (err) => {
-      console.error('❌ Request error:', err);
-      next(err);
-    });
-    
-  } else {
-    next();
-  }
-});
-
-// Standardowy Express body parser (działa po naszym loggingu)
 app.use(express.json());
 
 // Ścieżki do danych agentów - UŻYWAMY WORKSPACE PLIKÓW!
@@ -96,8 +32,7 @@ async function readJsonFile(filePath) {
 }
 
 // 1. Endpoint dla dziennej sprzedaży (produkty)
-app.get('/api/daily-sales', async (req, res) => {
-  console.log(`📥 GET ${req.originalUrl} from ${req.ip}`);
+console.log("📥 GET", req.originalUrl); app.get('/api/daily-sales', async (req, res) => {
   try {
     // Próbujemy odczytać dane z plików agentów
     const ebayData = await readJsonFile(EBAY_DATA_PATH);
@@ -183,7 +118,7 @@ app.get('/api/daily-sales', async (req, res) => {
 });
 
 // 2. Endpoint dla podsumowania sprzedaży (używany przez dashboard główny)
-app.get('/api/sales-summary', async (req, res) => {
+console.log("📥 GET", req.originalUrl); app.get('/api/sales-summary', async (req, res) => {
   try {
     // Pobierz aktualne dane z workspace plików (gdzie agent zapisuje)
     const ebayData = await readJsonFile(EBAY_DATA_PATH);
@@ -248,7 +183,7 @@ app.get('/api/sales-summary', async (req, res) => {
 // (kopiuję resztę z oryginalnego pliku)
 
 // 3. Webhook dla agentów (Allegro/eBay workers)
-app.post('/api/agent-webhook', async (req, res) => {
+console.log("📥 POST", req.originalUrl); app.post('/api/agent-webhook', async (req, res) => {
   try {
     const { agent, action, data, timestamp } = req.body;
     
@@ -294,7 +229,7 @@ app.post('/api/agent-webhook', async (req, res) => {
 });
 
 // 4. Endpoint konfiguracji dla agentów
-app.get('/api/agent-config', async (req, res) => {
+console.log("📥 GET", req.originalUrl); app.get('/api/agent-config', async (req, res) => {
   try {
     const config = {
       allegro: {
@@ -329,7 +264,7 @@ app.get('/api/agent-config', async (req, res) => {
 });
 
 // 5. Endpoint sync danych agentów
-app.get('/api/sync-agent-data', async (req, res) => {
+console.log("📥 GET", req.originalUrl); app.get('/api/sync-agent-data', async (req, res) => {
   try {
     const allegroData = await readJsonFile(ALLEGRO_DATA_PATH);
     const ebayData = await readJsonFile(EBAY_DATA_PATH);
@@ -370,17 +305,11 @@ app.get('/api/sync-agent-data', async (req, res) => {
 });
 
 // 6. Endpoint do rozmowy z agentem (komunikacja dwustronna)
-app.post('/api/agent-chat', async (req, res) => {
+console.log("📥 POST", req.originalUrl); app.post('/api/agent-chat', async (req, res) => {
   try {
-    const { message, agent, context, action, from } = req.body;
+    const { message, agent, context, action } = req.body;
     
-    // Ulepszone logowanie - pokazuje WSZYSTKIE dane
-    console.log(`💬 AGENT CHAT REQUEST:`);
-    console.log(`   From: ${from || 'unknown'} (agent: ${agent || 'unknown'})`);
-    console.log(`   Action: ${action || 'none'}`);
-    console.log(`   Message: "${message || 'no message'}"`);
-    console.log(`   IP: ${req.ip}, Time: ${new Date().toISOString()}`);
-    console.log(`   Full body:`, JSON.stringify(req.body, null, 2));
+    console.log(`💬 Agent chat: ${agent || 'unknown'} - "${message}"`);
     
     // Jeśli to pierwsza wiadomość od agenta
     if (action === 'hello' || message?.includes('hello') || message?.includes('cześć')) {
@@ -449,7 +378,7 @@ app.post('/api/agent-chat', async (req, res) => {
 });
 
 // 7. Endpoint danych dla wykresów (chart-data)
-app.get('/api/chart-data', async (req, res) => {
+console.log("📥 GET", req.originalUrl); app.get('/api/chart-data', async (req, res) => {
   try {
     const allegroData = await readJsonFile(ALLEGRO_DATA_PATH);
     const ebayData = await readJsonFile(EBAY_DATA_PATH);
@@ -487,7 +416,7 @@ app.get('/api/chart-data', async (req, res) => {
 });
 
 // 8. Endpoint danych miesięcznych dla wykresów
-app.get('/api/monthly-chart-data', async (req, res) => {
+console.log("📥 GET", req.originalUrl); app.get('/api/monthly-chart-data', async (req, res) => {
   try {
     // Generujemy dane dla ostatnich 12 miesięcy
     const today = new Date();
@@ -528,7 +457,7 @@ app.get('/api/monthly-chart-data', async (req, res) => {
 });
 
 // 9. Endpoint statystyk platform
-app.get('/api/platform-stats', async (req, res) => {
+console.log("📥 GET", req.originalUrl); app.get('/api/platform-stats', async (req, res) => {
   try {
     const allegroData = await readJsonFile(ALLEGRO_DATA_PATH);
     const ebayData = await readJsonFile(EBAY_DATA_PATH);
@@ -577,7 +506,7 @@ app.get('/api/platform-stats', async (req, res) => {
 });
 
 // 10. Endpoint kompatybilny z istniejącą app (zwraca dane w starym formacie)
-app.get('/api/app-data', async (req, res) => {
+console.log("📥 GET", req.originalUrl); app.get('/api/app-data', async (req, res) => {
   try {
     // Pobierz prawdziwe dane
     const ebayData = await readJsonFile(EBAY_DATA_PATH);
