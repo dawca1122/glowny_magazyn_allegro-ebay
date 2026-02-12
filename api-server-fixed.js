@@ -3,6 +3,7 @@ import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fs from 'fs/promises';
+import { appendFileSync } from 'fs';
 import path from 'path';
 import { google } from 'googleapis';
 
@@ -25,7 +26,7 @@ app.use((req, res, next) => {
     const logEntry = `🚨 ${timestamp} ${req.method} ${req.originalUrl} from ${req.ip}\n`;
     
     // ZAPISZ DO PLIKU
-    fs.appendFileSync(LOG_FILE, logEntry, 'utf8');
+    appendFileSync(LOG_FILE, logEntry, 'utf8');
     
     // TEŻ DO KONSOLI
     console.log('='.repeat(80));
@@ -44,7 +45,7 @@ app.use((req, res, next) => {
       const bodyLog = `   Raw Body: ${rawBody.substring(0, 500)}${rawBody.length > 500 ? '...' : ''}\n`;
       
       // ZAPISZ BODY DO PLIKU
-      fs.appendFileSync(LOG_FILE, bodyLog, 'utf8');
+      appendFileSync(LOG_FILE, bodyLog, 'utf8');
       
       // TEŻ DO KONSOLI
       console.log(`   Raw Body: ${rawBody.substring(0, 500)}${rawBody.length > 500 ? '...' : ''}`);
@@ -54,14 +55,14 @@ app.use((req, res, next) => {
         try {
           req.body = JSON.parse(rawBody);
           const parsedLog = `   Parsed Body: ${JSON.stringify(req.body)}\n`;
-          fs.appendFileSync(LOG_FILE, parsedLog, 'utf8');
+          appendFileSync(LOG_FILE, parsedLog, 'utf8');
           console.log(`   Parsed Body:`, req.body);
         } catch (e) {
           req.body = rawBody;
         }
       }
       
-      fs.appendFileSync(LOG_FILE, '='.repeat(80) + '\n', 'utf8');
+      appendFileSync(LOG_FILE, '='.repeat(80) + '\n', 'utf8');
       console.log('='.repeat(80));
       next();
     });
