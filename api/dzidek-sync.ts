@@ -8,7 +8,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export const runtime = 'nodejs';
 
-const DZIDEK_URL = 'https://franchise-undefined-growth-valley.trycloudflare.com';
+const DZIDEK_URL = 'https://api.dzidek.de';
 const REQUEST_TIMEOUT = 30000;
 
 interface DzidekSalesResponse {

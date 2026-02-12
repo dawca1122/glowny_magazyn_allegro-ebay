@@ -11,7 +11,7 @@ const getEnvVar = (name: string): string => {
 };
 
 // Dzidek API URL - główne źródło danych
-const DZIDEK_API = getEnvVar('VITE_DZIDEK_API') || 'https://franchise-undefined-growth-valley.trycloudflare.com';
+const DZIDEK_API = getEnvVar('VITE_DZIDEK_API') || 'https://api.dzidek.de';
 
 // Local dev fallback
 const isDev = typeof window !== 'undefined' && (

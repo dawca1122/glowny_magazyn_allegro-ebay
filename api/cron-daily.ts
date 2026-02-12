@@ -9,7 +9,7 @@ import { supabaseService } from './lib/supabase.js';
 export const runtime = 'nodejs';
 
 const RETENTION_DAYS = 30;
-const DZIDEK_URL = 'https://franchise-undefined-growth-valley.trycloudflare.com';
+const DZIDEK_URL = 'https://api.dzidek.de';
 
 async function syncFromDzidek(): Promise<{ success: boolean; data?: any }> {
   try {

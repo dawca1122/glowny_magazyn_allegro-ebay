@@ -1,5 +1,5 @@
 // Lightweight client to fetch aggregated sales data from Dzidek API
-// Dzidek API: https://franchise-undefined-growth-valley.trycloudflare.com/api/app-data
+// Dzidek API: https://api.dzidek.de/api/app-data
 
 export type SalesSummaryEntry = {
   soldQty: number;
@@ -20,7 +20,7 @@ const getEnvVar = (name: string): string => {
 };
 
 // Dzidek API - główne źródło danych
-const DZIDEK_API = getEnvVar('VITE_DZIDEK_API') || 'https://franchise-undefined-growth-valley.trycloudflare.com';
+const DZIDEK_API = getEnvVar('VITE_DZIDEK_API') || 'https://api.dzidek.de';
 const SALES_ENDPOINT = getEnvVar('VITE_ALLEGRO_SALES_ENDPOINT') || `${DZIDEK_API}/api/app-data`;
 
 export const salesService = {
