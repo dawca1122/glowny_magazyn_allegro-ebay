@@ -84,6 +84,33 @@ async function pingWorkers(): Promise<{ allegro: boolean; ebay: boolean }> {
   return results;
 }
 
+async function cleanupSheetsHistory(): Promise<{ success: boolean; deleted: number; message: string }> {
+  try {
+    // Wywołaj API inventory-sheets z metodą DELETE
+    const response = await fetch(`${process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : ''}/api/inventory-sheets`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(30000),
+    });
+    
+    if (!response.ok) {
+      console.log('[CRON] Sheets cleanup response not OK:', response.status);
+      return { success: false, deleted: 0, message: 'HTTP error' };
+    }
+    
+    const data = await response.json();
+    console.log('[CRON] Sheets history cleanup:', data);
+    return { 
+      success: data.success || false, 
+      deleted: data.deleted || 0, 
+      message: data.message || 'OK' 
+    };
+  } catch (error: any) {
+    console.error('[CRON] Sheets cleanup error:', error);
+    return { success: false, deleted: 0, message: error.message };
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -97,6 +124,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     tasks: {
       syncDzidek: { success: false, data: null as any },
       cleanup: { success: false, deletedRows: 0 },
+      sheetsCleanup: { success: false, deleted: 0, message: '' },
       workerPing: { allegro: false, ebay: false },
     },
     duration: 0,
@@ -110,16 +138,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const dzidekSync = await syncFromDzidek();
     results.tasks.syncDzidek = { success: dzidekSync.success, data: dzidekSync.data };
 
-    // 2. Czyszczenie starych danych (30+ dni)
+    // 2. Czyszczenie starych danych Supabase (30+ dni)
     const cleanup = await cleanupOldData();
     results.tasks.cleanup = cleanup;
 
-    // 3. Ping workerów
+    // 3. Czyszczenie historii Google Sheets (30+ dni)
+    const sheetsCleanup = await cleanupSheetsHistory();
+    results.tasks.sheetsCleanup = sheetsCleanup;
+
+    // 4. Ping workerów
     const workerPing = await pingWorkers();
     results.tasks.workerPing = workerPing;
 
     results.duration = Date.now() - startTime;
-    results.success = dzidekSync.success || cleanup.success;
+    results.success = dzidekSync.success || cleanup.success || sheetsCleanup.success;
 
     console.log('[CRON] Daily tasks completed:', results);
     return res.status(200).json(results);

@@ -65,56 +65,81 @@ const saveMockData = (data: InventoryItem[]) => {
   localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(data));
 };
 
-// Pobierz produkty z Dzidek API
-const fetchProductsFromDzidek = async (): Promise<InventoryItem[] | null> => {
+// Cache dla produktów z Sheets (żeby nie pobierać za każdym razem)
+let sheetsCache: { items: InventoryItem[]; timestamp: number } | null = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minut
+
+// Pobierz produkty z Google Sheets API
+const fetchProductsFromSheets = async (): Promise<InventoryItem[] | null> => {
+  // Sprawdź cache
+  if (sheetsCache && Date.now() - sheetsCache.timestamp < CACHE_TTL) {
+    console.log('[Inventory] Using cached Sheets data:', sheetsCache.items.length, 'products');
+    return sheetsCache.items;
+  }
+  
   try {
-    const response = await fetch('https://api.dzidek.de/api/app-data', {
+    // Użyj API endpoint - działa na Vercel
+    const apiBase = typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
+      ? '' 
+      : 'http://localhost:3001';
+    
+    const response = await fetch(`${apiBase}/api/inventory-sheets`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     });
     
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.warn('[Inventory] Sheets API returned:', response.status);
+      return null;
+    }
     
     const data = await response.json();
     
-    if (data.summary) {
-      // Przekształć summary na produkty inventory
-      const products: InventoryItem[] = Object.entries(data.summary).map(([sku, info]: [string, any]) => ({
-        name: sku.replace(/-/g, ' '),
-        sku: sku,
-        ean: sku,
+    if (data.success && data.items && data.items.length > 0) {
+      // Przekształć na format InventoryItem
+      const products: InventoryItem[] = data.items.map((item: any) => ({
+        name: item.name || item.sku,
+        sku: item.sku,
+        ean: item.ean || item.sku,
         purchase_type: 'Faktura' as const,
         document_type: 'Typ A' as const,
         document_status: 'Pobrano' as const,
-        item_cost: info.gross * 0.5,  // Szacowany koszt = 50% ceny
-        total_stock: 10,  // Placeholder
-        allegro_price: info.gross,
-        ebay_price: 0,
-        allegro_stock: 10,
-        ebay_stock: 0,
-        allegro_title: sku.replace(/-/g, ' '),
-        ebay_title: '',
-        allegro_sku: sku,
-        created_at: new Date().toISOString(),
-        // Dodatkowe info o sprzedaży
-        soldToday: info.soldQty || 0,
-        revenueToday: info.gross || 0
+        item_cost: item.item_cost || 0,
+        total_stock: item.total_stock || 0,
+        allegro_price: item.allegro_price || 0,
+        ebay_price: item.ebay_price || 0,
+        allegro_stock: item.allegro_stock || item.total_stock || 0,
+        ebay_stock: item.ebay_stock || 0,
+        allegro_title: item.allegro_title || item.name,
+        ebay_title: item.ebay_title || '',
+        allegro_sku: item.sku,
+        created_at: item.created_at || new Date().toISOString()
       }));
       
-      console.log('[Inventory] Loaded from Dzidek:', products.length, 'products');
+      // Zapisz do cache
+      sheetsCache = { items: products, timestamp: Date.now() };
+      
+      console.log('[Inventory] Loaded from Google Sheets:', products.length, 'products');
       return products;
     }
     
+    console.log('[Inventory] No products in Sheets response:', data.message || 'empty');
     return null;
   } catch (error) {
-    console.warn('[Inventory] Dzidek unavailable:', error);
+    console.warn('[Inventory] Google Sheets API unavailable:', error);
     return null;
   }
 };
 
 export const inventoryService = {
   async fetchAll(): Promise<InventoryItem[]> {
-    // 1. Najpierw Supabase jeśli skonfigurowane
+    // 1. Najpierw Google Sheets (główne źródło - 300+ produktów)
+    const sheetsProducts = await fetchProductsFromSheets();
+    if (sheetsProducts && sheetsProducts.length > 0) {
+      return sheetsProducts;
+    }
+    
+    // 2. Fallback: Supabase jeśli skonfigurowane
     if (supabase) {
       const { data, error } = await supabase.from('inventory').select('*').order('created_at', { ascending: false });
       if (!error && data && data.length > 0) {
@@ -126,13 +151,7 @@ export const inventoryService = {
       }
     }
     
-    // 2. Fallback: pobierz z Dzidek API
-    const dzidekProducts = await fetchProductsFromDzidek();
-    if (dzidekProducts && dzidekProducts.length > 0) {
-      return dzidekProducts;
-    }
-    
-    // 3. Ostateczny fallback: localStorage
+    // 3. Ostateczny fallback: localStorage (puste produkty)
     return getMockData();
   },
 

@@ -45,6 +45,7 @@ export const apiEndpoints = {
     `${API_BASE}/api/monthly-chart-data?months=${months}`,
   platformStats: `${API_BASE}/api/platform-stats`,
   exportToSheets: `${API_BASE}/api/export-to-sheets`,
+  inventorySheets: `${API_BASE}/api/inventory-sheets`,
   reports: `${API_BASE}/api/reports`,
   dzidekSync: `${API_BASE}/api/dzidek-sync`,
   dzidekStatus: `${API_BASE}/api/dzidek-status`,
