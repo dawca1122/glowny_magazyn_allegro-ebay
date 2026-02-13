@@ -65,78 +65,82 @@ const saveMockData = (data: InventoryItem[]) => {
   localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(data));
 };
 
-// Cache dla produktów z Sheets (żeby nie pobierać za każdym razem)
-let sheetsCache: { items: InventoryItem[]; timestamp: number } | null = null;
+// Cache dla produktów (żeby nie pobierać za każdym razem)
+let inventoryCache: { items: InventoryItem[]; timestamp: number } | null = null;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minut
 
-// Pobierz produkty z Google Sheets API
-const fetchProductsFromSheets = async (): Promise<InventoryItem[] | null> => {
+// Pobierz produkty bezpośrednio z Allegro i eBay API
+const fetchProductsFromPlatforms = async (): Promise<InventoryItem[] | null> => {
   // Sprawdź cache
-  if (sheetsCache && Date.now() - sheetsCache.timestamp < CACHE_TTL) {
-    console.log('[Inventory] Using cached Sheets data:', sheetsCache.items.length, 'products');
-    return sheetsCache.items;
+  if (inventoryCache && Date.now() - inventoryCache.timestamp < CACHE_TTL) {
+    console.log('[Inventory] Using cached data:', inventoryCache.items.length, 'products');
+    return inventoryCache.items;
   }
   
   try {
-    // Użyj API endpoint - działa na Vercel
+    // Użyj API endpoint - pobiera z Allegro i eBay
     const apiBase = typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
       ? '' 
       : 'http://localhost:3001';
     
-    const response = await fetch(`${apiBase}/api/inventory-sheets`, {
+    const response = await fetch(`${apiBase}/api/inventory-sync`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     });
     
     if (!response.ok) {
-      console.warn('[Inventory] Sheets API returned:', response.status);
+      console.warn('[Inventory] Sync API returned:', response.status);
       return null;
     }
     
     const data = await response.json();
     
-    if (data.success && data.items && data.items.length > 0) {
+    if (data.success && data.combined && data.combined.length > 0) {
       // Przekształć na format InventoryItem
-      const products: InventoryItem[] = data.items.map((item: any) => ({
+      const products: InventoryItem[] = data.combined.map((item: any) => ({
         name: item.name || item.sku,
         sku: item.sku,
         ean: item.ean || item.sku,
         purchase_type: 'Faktura' as const,
         document_type: 'Typ A' as const,
         document_status: 'Pobrano' as const,
-        item_cost: item.item_cost || 0,
-        total_stock: item.total_stock || 0,
-        allegro_price: item.allegro_price || 0,
-        ebay_price: item.ebay_price || 0,
-        allegro_stock: item.allegro_stock || item.total_stock || 0,
-        ebay_stock: item.ebay_stock || 0,
-        allegro_title: item.allegro_title || item.name,
-        ebay_title: item.ebay_title || '',
-        allegro_sku: item.sku,
-        created_at: item.created_at || new Date().toISOString()
+        item_cost: item.price * 0.5, // Szacowany koszt = 50% ceny
+        total_stock: item.stock || 0,
+        allegro_price: item.platform === 'allegro' ? item.price : 0,
+        ebay_price: item.platform === 'ebay' ? item.price : 0,
+        allegro_stock: item.platform === 'allegro' ? item.stock : 0,
+        ebay_stock: item.platform === 'ebay' ? item.stock : 0,
+        allegro_title: item.platform === 'allegro' ? item.name : '',
+        ebay_title: item.platform === 'ebay' ? item.name : '',
+        allegro_sku: item.platform === 'allegro' ? item.external_id : '',
+        allegro_listing_id: item.platform === 'allegro' ? item.external_id : undefined,
+        ebay_sku: item.platform === 'ebay' ? item.external_id : '',
+        image_url: item.image_url,
+        sync_status: item.status === 'ACTIVE' ? 'synced' : 'pending',
+        created_at: new Date().toISOString()
       }));
       
       // Zapisz do cache
-      sheetsCache = { items: products, timestamp: Date.now() };
+      inventoryCache = { items: products, timestamp: Date.now() };
       
-      console.log('[Inventory] Loaded from Google Sheets:', products.length, 'products');
+      console.log(`[Inventory] Loaded from APIs: Allegro=${data.allegro?.count || 0}, eBay=${data.ebay?.count || 0}, Total=${products.length}`);
       return products;
     }
     
-    console.log('[Inventory] No products in Sheets response:', data.message || 'empty');
+    console.log('[Inventory] No products from platforms:', data.allegro?.status, data.ebay?.status);
     return null;
   } catch (error) {
-    console.warn('[Inventory] Google Sheets API unavailable:', error);
+    console.warn('[Inventory] Sync API unavailable:', error);
     return null;
   }
 };
 
 export const inventoryService = {
   async fetchAll(): Promise<InventoryItem[]> {
-    // 1. Najpierw Google Sheets (główne źródło - 300+ produktów)
-    const sheetsProducts = await fetchProductsFromSheets();
-    if (sheetsProducts && sheetsProducts.length > 0) {
-      return sheetsProducts;
+    // 1. Główne źródło: API Allegro + eBay (300+ produktów)
+    const platformProducts = await fetchProductsFromPlatforms();
+    if (platformProducts && platformProducts.length > 0) {
+      return platformProducts;
     }
     
     // 2. Fallback: Supabase jeśli skonfigurowane
