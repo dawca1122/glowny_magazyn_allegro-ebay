@@ -559,10 +559,10 @@ const App: React.FC = () => {
 
         <div className="p-4 border-t border-slate-800">
           <div className={`mb-4 px-4 py-2.5 rounded-xl text-[10px] uppercase font-black tracking-[0.1em] flex items-center gap-2 ${supabaseHealth === 'ok'
-              ? 'bg-emerald-500/10 text-emerald-400'
-              : supabaseHealth === 'error'
-                ? 'bg-rose-500/10 text-rose-400'
-                : 'bg-amber-500/10 text-amber-400'
+            ? 'bg-emerald-500/10 text-emerald-400'
+            : supabaseHealth === 'error'
+              ? 'bg-rose-500/10 text-rose-400'
+              : 'bg-amber-500/10 text-amber-400'
             }`}>
             {supabaseHealth === 'ok' && <><Database className="w-3.5 h-3.5" /> Supabase Active</>}
             {supabaseHealth === 'error' && <><CloudOff className="w-3.5 h-3.5" /> Supabase Error</>}
@@ -836,10 +836,6 @@ const App: React.FC = () => {
 
                       <div className="space-y-2">
                         <div className="flex justify-between items-center text-sm">
-                          <span className="text-white/70">- Koszty produktów:</span>
-                          <span className="text-rose-300">€{(netProfit.daily.costs.products * 0.664).toFixed(2)} + {(netProfit.daily.costs.products * 0.336).toFixed(2)} PLN</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm">
                           <span className="text-white/70">- Prowizje platform:</span>
                           <span className="text-amber-300">€{(netProfit.daily.costs.fees * 0.762).toFixed(2)} + {(netProfit.daily.costs.fees * 0.238).toFixed(2)} PLN</span>
                         </div>
@@ -874,10 +870,6 @@ const App: React.FC = () => {
                       </div>
 
                       <div className="space-y-2">
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-white/70">- Koszty produktów:</span>
-                          <span className="text-rose-300">€{(netProfit.monthly.costs.products * 0.664).toFixed(2)} + {(netProfit.monthly.costs.products * 0.336).toFixed(2)} PLN</span>
-                        </div>
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-white/70">- Prowizje platform:</span>
                           <span className="text-amber-300">€{(netProfit.monthly.costs.fees * 0.762).toFixed(2)} + {(netProfit.monthly.costs.fees * 0.238).toFixed(2)} PLN</span>
@@ -914,8 +906,8 @@ const App: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
                 <div className="bg-white p-5 rounded-[20px] border border-slate-200 shadow-sm">
                   <p className="text-sm font-semibold text-slate-500 mb-2">Koszty (miesiąc)</p>
-                  <p className="text-2xl font-black text-slate-900">{(netProfit.monthly.costs.products + netProfit.monthly.costs.fees + netProfit.monthly.costs.taxes).toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN</p>
-                  <p className="text-xs text-slate-500 mt-1">Produkty + opłaty + podatki</p>
+                  <p className="text-2xl font-black text-slate-900">{(netProfit.monthly.costs.fees + netProfit.monthly.costs.taxes).toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN</p>
+                  <p className="text-xs text-slate-500 mt-1">Opłaty + podatki</p>
                 </div>
                 <div className="bg-white p-5 rounded-[20px] border border-emerald-200 shadow-sm">
                   <p className="text-sm font-semibold text-emerald-600 mb-2">Zysk eBay (miesiąc)</p>
@@ -1072,13 +1064,6 @@ const App: React.FC = () => {
                     <p className="text-white/60 text-xs mt-1">eBay: €{netProfit.monthly.revenue.ebay.toFixed(2)} + Allegro: {netProfit.monthly.revenue.allegro.toFixed(2)} PLN</p>
                   </div>
 
-                  {/* Koszty szczegółowe */}
-                  <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
-                    <p className="text-white/80 text-sm font-semibold mb-1">KOSZTY PRODUKTÓW</p>
-                    <p className="text-2xl font-black text-rose-300">-{netProfit.monthly.costs.products.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN</p>
-                    <p className="text-white/60 text-xs mt-1">Zakupy towarów</p>
-                  </div>
-
                   <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
                     <p className="text-white/80 text-sm font-semibold mb-1">OPŁATY</p>
                     <p className="text-2xl font-black text-amber-300">-{netProfit.monthly.costs.fees.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN</p>
@@ -1093,7 +1078,7 @@ const App: React.FC = () => {
 
                   <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
                     <p className="text-white/80 text-sm font-semibold mb-1">SUMA KOSZTÓW</p>
-                    <p className="text-2xl font-black text-cyan-300">-{(netProfit.monthly.costs.products + netProfit.monthly.costs.fees + netProfit.monthly.costs.taxes).toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN</p>
+                    <p className="text-2xl font-black text-cyan-300">-{(netProfit.monthly.costs.fees + netProfit.monthly.costs.taxes).toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN</p>
                     <p className="text-white/60 text-xs mt-1">Wszystkie koszty</p>
                   </div>
                 </div>
@@ -1133,8 +1118,7 @@ const App: React.FC = () => {
               </div>
 
               {/* Podsumowanie karty */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <SummaryCard label="Koszt zakupów" value={reportData?.purchasesCost ?? 0} tone="slate" loading={reportLoading} currency="PLN" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-3/4">
                 <SummaryCard label="Zysk Allegro" value={reportData?.allegroProfit ?? 0} tone="indigo" loading={reportLoading} currency="PLN" />
                 <SummaryCard label="Zysk eBay" value={reportData?.ebayProfit ?? 0} tone="emerald" loading={reportLoading} currency="EUR" />
               </div>
