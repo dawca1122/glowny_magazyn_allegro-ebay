@@ -28,7 +28,7 @@ const App: React.FC = () => {
   const [reportData, setReportData] = useState<PeriodReport | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
-  
+
   // Stan dla wykresów
   const [chartData, setChartData] = useState<any>(null);
   const [monthlyChartData, setMonthlyChartData] = useState<any>(null);
@@ -53,8 +53,8 @@ const App: React.FC = () => {
 
   // Dropdown dla dziennej sprzedaży
   const [dailySalesDropdown, setDailySalesDropdown] = useState<{
-    allegro: Array<{productName: string; soldToday: number}>;
-    ebay: Array<{productName: string; soldToday: number}>;
+    allegro: Array<{ productName: string; soldToday: number }>;
+    ebay: Array<{ productName: string; soldToday: number }>;
   }>({
     allegro: [],
     ebay: []
@@ -104,98 +104,89 @@ const App: React.FC = () => {
 
   const fetchSales = async () => {
     try {
-      // 1. Najpierw spróbuj pobrać z Dzidka bezpośrednio
+      // Pobieramy dane Allegro z nowego GAS endpointu, a resztę z Dzidka
+
+      let allegroData: any = null;
+      let ebayData: any = null;
+      let dzidekData: any = null;
+
+      // 1. Spróbuj pobrać Allegro z nowego endpointu (GAS przez Vercel api/dzidek-sync)
+      try {
+        const syncResponse = await fetch(apiEndpoints.dzidekSync, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (syncResponse.ok) {
+          const syncJson = await syncResponse.json();
+          if (syncJson.success && syncJson.data?.allegro) {
+            allegroData = syncJson.data.allegro;
+            console.log('[Sales] Allegro Data from GAS API:', allegroData);
+          }
+        }
+      } catch (syncError) {
+        console.warn('[Sales] GAS API unavailable, fallback not applicable for Allegro', syncError);
+      }
+
+      // 2. Pobierz eBay z Dziedka
       try {
         const dzidekResponse = await fetch(apiEndpoints.dzidek.appData, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
         });
-        
+
         if (dzidekResponse.ok) {
-          const dzidekData = await dzidekResponse.json();
-          console.log('[Sales] Data from Dzidek:', dzidekData);
-          
-          // Dzidek zwraca: { summary: {...produkty}, platformData: {...} }
-          // Musimy przekształcić na format { daily, monthly }
-          if (dzidekData.summary || dzidekData.platformData) {
-            // Oblicz sumę z summary (prawdziwe dane sprzedaży)
-            let allegroRevenue = 0;
-            let allegroItems = 0;
-            if (dzidekData.summary) {
-              Object.values(dzidekData.summary).forEach((item: any) => {
-                allegroRevenue += item.gross || 0;
-                allegroItems += item.soldQty || 0;
-              });
-            }
-            
-            // Użyj platformData jeśli ma dane, inaczej summary
-            const ebayRev = dzidekData.platformData?.ebay?.revenue || 0;
-            const allegroRev = dzidekData.platformData?.allegro?.revenue || allegroRevenue;
-            
-            // Szacowane koszty (30% produkty, 12% prowizje, 8% shipping/VAT)
-            const totalRevenue = allegroRev;
-            const productCosts = totalRevenue * 0.30;
-            const fees = totalRevenue * 0.12;
-            const taxes = totalRevenue * 0.08;
-            const netAllegro = totalRevenue - productCosts - fees - taxes;
-            
-            const transformedData = {
-              daily: {
-                revenue: { ebay: ebayRev, allegro: allegroRev },
-                costs: { products: productCosts, fees: fees, taxes: taxes },
-                net: { ebay: ebayRev * 0.5, allegro: netAllegro }
-              },
-              monthly: {
-                revenue: { ebay: ebayRev, allegro: allegroRev },
-                costs: { products: productCosts, fees: fees, taxes: taxes },
-                net: { ebay: ebayRev * 0.5, allegro: netAllegro },
-                dailyAverage: netAllegro / 12 // ~12 dni od początku miesiąca
-              }
-            };
-            
-            console.log('[Sales] Transformed Dzidek data:', transformedData);
-            setNetProfit(transformedData);
-            setSalesSummary({});
-            return; // Sukces - mamy dane z Dzidka
-          }
-          
-          // Stary format (daily/monthly)
-          if (dzidekData.daily || dzidekData.monthly) {
-            setNetProfit(dzidekData);
-            setSalesSummary({});
-            return;
-          }
+          dzidekData = await dzidekResponse.json();
+          console.log('[Sales] Data from Dzidek (for eBay):', dzidekData);
         }
       } catch (dzidekError) {
-        console.warn('[Sales] Dzidek unavailable, trying fallback...', dzidekError);
+        console.warn('[Sales] Dzidek unavailable for eBay fallback...', dzidekError);
       }
-      
-      // 2. Fallback na własne API (Vercel functions)
-      const response = await fetch(apiEndpoints.salesSummary);
-      if (response.ok) {
-        const apiSummary = await response.json();
-        setNetProfit(apiSummary);
-        setSalesSummary({});
-      } else {
-        // 3. Ostateczny fallback - lokalny serwis
-        const summary = await salesService.fetchSummary();
-        setSalesSummary(summary);
-        setNetProfit({
-          daily: {
-            revenue: { ebay: 0, allegro: 0 },
-            costs: { products: 0, fees: 0, taxes: 0 },
-            net: { ebay: 0, allegro: 0 }
-          },
-          monthly: {
-            revenue: { ebay: 0, allegro: 0 },
-            costs: { products: 0, fees: 0, taxes: 0 },
-            net: { ebay: 0, allegro: 0 },
-            dailyAverage: 0
-          }
-        });
-      }
+
+      // 3. Połącz dane i przekształć na format { daily, monthly } obsługiwany przez dashboard
+      const ebayRev = dzidekData?.platformData?.ebay?.revenue || 0;
+      const allegroRev = allegroData?.revenue || dzidekData?.platformData?.allegro?.revenue || 0;
+
+      const ebayNet = dzidekData?.platformData?.ebay?.netProfit || (ebayRev * 0.5); // Fallback for eBay net
+
+      // Koszty Allegro (realne z GAS, albo fallback)
+      const allegroProductCosts = allegroData ? (allegroData.costs.products || 0) : (allegroRev * 0.30);
+      const allegroFees = allegroData ? (allegroData.costs.fees || 0) : (allegroRev * 0.12);
+      const allegroTaxes = allegroData ? (allegroData.costs.taxes || 0) : (allegroRev * 0.08);
+
+      const netAllegro = allegroData
+        ? allegroData.netProfit
+        : (allegroRev - allegroProductCosts - allegroFees - allegroTaxes);
+
+      // Koszty eBay (odtworzone z szacunków)
+      const ebayProductCosts = ebayRev * 0.30;
+      const ebayFees = ebayRev * 0.12;
+      const ebayTaxes = ebayRev * 0.08;
+
+      const totalProductCosts = allegroProductCosts + ebayProductCosts;
+      const totalFees = allegroFees + ebayFees;
+      const totalTaxes = allegroTaxes + ebayTaxes;
+
+      const transformedData = {
+        daily: {
+          revenue: { ebay: ebayRev, allegro: allegroRev },
+          costs: { products: totalProductCosts, fees: totalFees, taxes: totalTaxes },
+          net: { ebay: ebayNet, allegro: netAllegro }
+        },
+        monthly: {
+          revenue: { ebay: ebayRev, allegro: allegroRev },
+          costs: { products: totalProductCosts, fees: totalFees, taxes: totalTaxes },
+          net: { ebay: ebayNet, allegro: netAllegro },
+          dailyAverage: netAllegro / 12 // Uproszczone mapowanie
+        }
+      };
+
+      console.log('[Sales] Transformed unified data:', transformedData);
+      setNetProfit(transformedData);
+      setSalesSummary({});
+
     } catch (err) {
-      console.warn('[Sales] All sources failed', err);
+      console.warn('[Sales] All sources failed completely', err);
       setNetProfit({
         daily: {
           revenue: { ebay: 0, allegro: 0 },
@@ -231,28 +222,28 @@ const App: React.FC = () => {
   const fetchChartData = async () => {
     try {
       setChartLoading(true);
-      
+
       // Pobierz dane liniowe
       const chartResponse = await fetch(apiEndpoints.chartData(chartPeriod, chartPlatform));
       const chartResult = await chartResponse.json();
       if (chartResult.success) {
         setChartData(chartResult);
       }
-      
+
       // Pobierz dane miesięczne
       const monthlyResponse = await fetch(apiEndpoints.monthlyChartData(6));
       const monthlyResult = await monthlyResponse.json();
       if (monthlyResult.success) {
         setMonthlyChartData(monthlyResult);
       }
-      
+
       // Pobierz statystyki platform
       const statsResponse = await fetch(apiEndpoints.platformStats);
       const statsResult = await statsResponse.json();
       if (statsResult.success) {
         setPlatformStats(statsResult);
       }
-      
+
     } catch (error) {
       console.error('Błąd pobierania danych wykresów:', error);
     } finally {
@@ -264,7 +255,7 @@ const App: React.FC = () => {
   const exportToGoogleSheets = async () => {
     try {
       showNotification('Eksportowanie raportu do Google Sheets...', 'success');
-      
+
       // Przygotuj dane raportu z prawdziwych danych
       const exportReportData = {
         type: reportType === 'weekly' ? 'Tygodniowy' : reportType === 'monthly' ? 'Miesięczny' : 'Kwartalny',
@@ -290,25 +281,25 @@ const App: React.FC = () => {
           netProfit: netProfit.monthly.net.allegro
         }
       };
-      
+
       // Wysłanie danych do lokalnego API
       const response = await fetch(apiEndpoints.exportToSheets, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(exportReportData)
       });
-      
+
       if (response.ok) {
         showNotification('✅ Raport wyeksportowany do Google Sheets!', 'success');
-        
+
         // Otwórz link do Sheet w nowej karcie
         const sheetUrl = 'https://docs.google.com/spreadsheets/d/1Rkl0t9-7fD4GG6t0dP7_cexo8Ctg48WPwUKfl-_dN18/edit';
         window.open(sheetUrl, '_blank');
-        
+
       } else {
         showNotification('❌ Błąd eksportu do Google Sheets', 'error');
       }
-      
+
     } catch (error) {
       console.error('Błąd eksportu do Google Sheets:', error);
       showNotification('❌ Błąd eksportu do Google Sheets', 'error');
@@ -319,16 +310,16 @@ const App: React.FC = () => {
   const fetchDailySales = async () => {
     try {
       setDailySalesLoading(true);
-      
+
       let data = null;
-      
+
       // 1. Spróbuj pobrać z Dzidka
       try {
         const dzidekResponse = await fetch(apiEndpoints.dzidek.dailySales, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
         });
-        
+
         if (dzidekResponse.ok) {
           data = await dzidekResponse.json();
           console.log('[DailySales] Data from Dzidek:', data);
@@ -336,7 +327,7 @@ const App: React.FC = () => {
       } catch (dzidekError) {
         console.warn('[DailySales] Dzidek unavailable:', dzidekError);
       }
-      
+
       // 2. Fallback na własne API
       if (!data) {
         const response = await fetch(apiEndpoints.dailySales);
@@ -344,27 +335,27 @@ const App: React.FC = () => {
           data = await response.json();
         }
       }
-      
+
       if (!data || !data.allegro || !data.ebay) {
         throw new Error('No valid data from any source');
       }
-      
+
       // Przekształć dane do formatu wymaganego przez komponent
       const allegroSales = data.allegro.map((item: any) => ({
         productName: item.productName,
         soldToday: item.soldToday
       }));
-      
+
       const ebaySales = data.ebay.map((item: any) => ({
         productName: item.productName,
         soldToday: item.soldToday
       }));
-      
+
       setDailySalesDropdown({
         allegro: allegroSales,
         ebay: ebaySales
       });
-      
+
       // Aktualizuj podsumowanie dziennej sprzedaży
       if (data.totals) {
         setNetProfit(prev => ({
@@ -378,10 +369,10 @@ const App: React.FC = () => {
           }
         }));
       }
-      
+
     } catch (error) {
       console.warn('[DailySales] All sources unavailable:', error);
-      
+
       // Brak danych - pokaż pustą listę
       setDailySalesDropdown({
         allegro: [],
@@ -398,7 +389,7 @@ const App: React.FC = () => {
     for (let i = 0; i < 12; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const monthNames = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
+      const monthNames = ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
       options.push({ value, label: `${monthNames[d.getMonth()]} ${d.getFullYear()}` });
     }
     return options;
@@ -460,12 +451,12 @@ const App: React.FC = () => {
   // Pobierz dzienną sprzedaż przy starcie
   useEffect(() => {
     fetchDailySales();
-    
+
     // Auto-refresh co 5 minut
     const interval = setInterval(() => {
       fetchDailySales();
     }, 5 * 60 * 1000);
-    
+
     return () => clearInterval(interval);
   }, []);
 
@@ -515,8 +506,8 @@ const App: React.FC = () => {
     return acc + (prof * curr.total_stock);
   }, 0);
 
-  const filteredItems = items.filter(item => 
-    item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const filteredItems = items.filter(item =>
+    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.sku.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -530,40 +521,36 @@ const App: React.FC = () => {
           </div>
           <span className="font-extrabold text-2xl tracking-tighter">SyncPro</span>
         </div>
-        
+
         <nav className="flex-1 p-4 space-y-2">
-          <button 
+          <button
             onClick={() => setCurrentView('dashboard')}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-semibold ${
-              currentView === 'dashboard' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-            }`}
+            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-semibold ${currentView === 'dashboard' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
           >
             <LayoutDashboard className="w-5 h-5" />
             <span>Dashboard</span>
           </button>
-          <button 
+          <button
             onClick={() => setCurrentView('magazyn')}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-semibold ${
-              currentView === 'magazyn' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-            }`}
+            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-semibold ${currentView === 'magazyn' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
           >
             <Package className="w-5 h-5" />
             <span>Magazyn</span>
           </button>
-          <button 
+          <button
             onClick={() => setCurrentView('raporty')}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-semibold ${
-              currentView === 'raporty' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-            }`}
+            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-semibold ${currentView === 'raporty' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
           >
             <BarChart3 className="w-5 h-5" />
             <span>Raporty</span>
           </button>
-          <button 
+          <button
             onClick={() => setCurrentView('wykresy')}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-semibold ${
-              currentView === 'wykresy' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-            }`}
+            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-semibold ${currentView === 'wykresy' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
           >
             <TrendingUp className="w-5 h-5" />
             <span>Wykresy</span>
@@ -571,18 +558,17 @@ const App: React.FC = () => {
         </nav>
 
         <div className="p-4 border-t border-slate-800">
-          <div className={`mb-4 px-4 py-2.5 rounded-xl text-[10px] uppercase font-black tracking-[0.1em] flex items-center gap-2 ${
-            supabaseHealth === 'ok'
+          <div className={`mb-4 px-4 py-2.5 rounded-xl text-[10px] uppercase font-black tracking-[0.1em] flex items-center gap-2 ${supabaseHealth === 'ok'
               ? 'bg-emerald-500/10 text-emerald-400'
               : supabaseHealth === 'error'
                 ? 'bg-rose-500/10 text-rose-400'
                 : 'bg-amber-500/10 text-amber-400'
-          }`}>
+            }`}>
             {supabaseHealth === 'ok' && <><Database className="w-3.5 h-3.5" /> Supabase Active</>}
             {supabaseHealth === 'error' && <><CloudOff className="w-3.5 h-3.5" /> Supabase Error</>}
             {supabaseHealth !== 'ok' && supabaseHealth !== 'error' && <><CloudOff className="w-3.5 h-3.5" /> Demo Version</>}
           </div>
-          <button 
+          <button
             onClick={() => showNotification('Wylogowano (mock).', 'success')}
             className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-rose-400 transition-colors w-full group font-semibold"
           >
@@ -598,15 +584,15 @@ const App: React.FC = () => {
         <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-10 shrink-0 shadow-sm z-10">
           <div className="flex items-center gap-4 bg-slate-50 px-5 py-2.5 rounded-2xl w-[450px] border border-slate-100 focus-within:border-indigo-300 focus-within:ring-4 focus-within:ring-indigo-500/5 transition-all">
             <Search className="w-4 h-4 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Szukaj po nazwie lub SKU..." 
-              className="bg-transparent border-none focus:outline-none text-sm w-full font-medium" 
+            <input
+              type="text"
+              placeholder="Szukaj po nazwie lub SKU..."
+              className="bg-transparent border-none focus:outline-none text-sm w-full font-medium"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          
+
           <div className="flex items-center gap-6">
             {/* Dropdown dziennej sprzedaży */}
             <div className="relative group">
@@ -617,7 +603,7 @@ const App: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-              
+
               {/* Dropdown content */}
               <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                 <div className="p-4">
@@ -625,7 +611,7 @@ const App: React.FC = () => {
                     <h3 className="font-bold text-slate-900">Sprzedaż dzisiaj ({new Date().toLocaleDateString('pl-PL')})</h3>
                     <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">Auto-refresh</span>
                   </div>
-                  
+
                   {/* Allegro section */}
                   <div className="mb-4">
                     <div className="flex items-center gap-2 mb-2">
@@ -633,7 +619,7 @@ const App: React.FC = () => {
                       <h4 className="font-semibold text-slate-800">Allegro</h4>
                       <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">PROTECH-SHOP</span>
                     </div>
-                    
+
                     {dailySalesLoading ? (
                       <div className="space-y-2">
                         <div className="h-8 bg-slate-100 rounded animate-pulse"></div>
@@ -654,7 +640,7 @@ const App: React.FC = () => {
                       <p className="text-sm text-slate-500 italic">Brak sprzedaży dzisiaj</p>
                     )}
                   </div>
-                  
+
                   {/* eBay section */}
                   <div className="mb-2">
                     <div className="flex items-center gap-2 mb-2">
@@ -662,7 +648,7 @@ const App: React.FC = () => {
                       <h4 className="font-semibold text-slate-800">eBay</h4>
                       <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">protech-shop</span>
                     </div>
-                    
+
                     {dailySalesLoading ? (
                       <div className="space-y-2">
                         <div className="h-8 bg-slate-100 rounded animate-pulse"></div>
@@ -683,15 +669,15 @@ const App: React.FC = () => {
                       <p className="text-sm text-slate-500 italic">Brak sprzedaży dzisiaj</p>
                     )}
                   </div>
-                  
+
                   <div className="pt-3 border-t border-slate-200 text-xs text-slate-500">
-                    <p>🔄 Ostatnia aktualizacja: {new Date().toLocaleTimeString('pl-PL', {hour: '2-digit', minute:'2-digit'})}</p>
+                    <p>🔄 Ostatnia aktualizacja: {new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}</p>
                     <p>📊 Łącznie sprzedanych: {dailySalesDropdown.allegro.reduce((sum, item) => sum + item.soldToday, 0) + dailySalesDropdown.ebay.reduce((sum, item) => sum + item.soldToday, 0)} szt.</p>
                   </div>
                 </div>
               </div>
             </div>
-            
+
             <button className="relative text-slate-400 hover:text-indigo-600 transition-all p-2.5 hover:bg-indigo-50 rounded-xl">
               <Bell className="w-6 h-6" />
               <span className="absolute top-2 right-2 w-4 h-4 bg-rose-500 border-2 border-white rounded-full text-[8px] flex items-center justify-center text-white font-black">2</span>
@@ -717,7 +703,7 @@ const App: React.FC = () => {
 
               {/* Split Screen Dashboard - eBay LEFT, Allegro RIGHT */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                
+
                 {/* eBay - LEFT SIDE */}
                 <div className="bg-white p-6 rounded-[24px] border border-emerald-200 shadow-lg">
                   <div className="flex items-center gap-3 mb-6">
@@ -725,7 +711,7 @@ const App: React.FC = () => {
                     <h2 className="text-2xl font-bold text-slate-900">eBay Dashboard</h2>
                     <span className="text-sm text-emerald-600 font-semibold bg-emerald-50 px-3 py-1.5 rounded-full">DZISIAJ</span>
                   </div>
-                  
+
                   {/* eBay Stats - dane z Dzidek API */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
@@ -744,7 +730,7 @@ const App: React.FC = () => {
                       <p className="text-xs text-emerald-600 mt-1">{netProfit.daily.revenue.ebay > 0 ? 'Sprzedaż aktywna' : 'Brak sprzedaży'}</p>
                     </div>
                   </div>
-                  
+
                   {/* eBay Status */}
                   <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
                     <div className="flex items-center gap-2 mb-2">
@@ -752,19 +738,19 @@ const App: React.FC = () => {
                       <p className="text-sm font-semibold text-slate-700">eBay Worker Status</p>
                     </div>
                     <p className="text-sm text-slate-600">
-                      {netProfit.daily.revenue.ebay > 0 
+                      {netProfit.daily.revenue.ebay > 0
                         ? `Aktywna sprzedaż - przychód €${netProfit.daily.revenue.ebay.toFixed(2)}`
                         : 'Sklep eBay zamknięty - brak aktywnej sprzedaży'
                       }
                     </p>
                   </div>
-                  
+
                   <div className="mt-4 text-sm text-slate-500">
                     <p>📊 <span className="font-semibold">Źródło danych:</span> Dzidek API</p>
                     <p>📨 <span className="font-semibold">Miesięcznie:</span> €{netProfit.monthly.revenue.ebay.toFixed(2)}</p>
                   </div>
                 </div>
-                
+
                 {/* Allegro - RIGHT SIDE */}
                 <div className="bg-white p-6 rounded-[24px] border border-indigo-200 shadow-lg">
                   <div className="flex items-center gap-3 mb-6">
@@ -772,7 +758,7 @@ const App: React.FC = () => {
                     <h2 className="text-2xl font-bold text-slate-900">Allegro Dashboard</h2>
                     <span className="text-sm text-indigo-600 font-semibold bg-indigo-50 px-3 py-1.5 rounded-full">DZISIAJ</span>
                   </div>
-                  
+
                   {/* Allegro Stats - dane z Dzidek API */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
@@ -791,7 +777,7 @@ const App: React.FC = () => {
                       <p className="text-xs text-indigo-600 mt-1">{netProfit.daily.revenue.allegro > 0 ? 'Sprzedaż aktywna' : 'API autoryzowane'}</p>
                     </div>
                   </div>
-                  
+
                   {/* Allegro Status - API DZIAŁA */}
                   <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-emerald-200">
                     <div className="flex items-center gap-2 mb-3">
@@ -804,7 +790,7 @@ const App: React.FC = () => {
                       <li>✅ <span className="font-semibold">Worker:</span> Gotowy do uruchomienia</li>
                       <li>✅ <span className="font-semibold">Dane:</span> Pobrane na żywo z API</li>
                     </ul>
-                    
+
                     <div className="text-center">
                       <p className="text-sm text-emerald-600">
                         🎉 Autoryzacja zakończona sukcesem!
@@ -814,7 +800,7 @@ const App: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="mt-4 text-sm text-slate-500">
                     <p>🔧 <span className="font-semibold">Worker Allegro:</span> Codziennie 21:00 CET</p>
                     <p>💾 <span className="font-semibold">Zapis danych:</span> Do plików JSON</p>
@@ -833,7 +819,7 @@ const App: React.FC = () => {
                     <span className="text-white font-bold text-sm">DZISIAJ + MIESIĄC</span>
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* ZYSK DZIENNY */}
                   <div className="bg-white/10 backdrop-blur-sm p-5 rounded-[20px] border border-white/20">
@@ -841,13 +827,13 @@ const App: React.FC = () => {
                       <div className="w-3 h-3 rounded-full bg-emerald-300"></div>
                       <h3 className="text-lg font-bold text-white">DZIENNY ZYSK NETTO</h3>
                     </div>
-                    
+
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <span className="text-white/80 text-sm">Przychód dzisiaj:</span>
                         <span className="text-white font-bold">€{netProfit.daily.revenue.ebay.toFixed(2)} + {netProfit.daily.revenue.allegro.toFixed(2)} PLN</span>
                       </div>
-                      
+
                       <div className="space-y-2">
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-white/70">- Koszty produktów:</span>
@@ -862,7 +848,7 @@ const App: React.FC = () => {
                           <span className="text-purple-300">€{(netProfit.daily.costs.taxes * 0.664).toFixed(2)} + {(netProfit.daily.costs.taxes * 0.336).toFixed(2)} PLN</span>
                         </div>
                       </div>
-                      
+
                       <div className="pt-3 border-t border-white/20">
                         <div className="flex justify-between items-center">
                           <span className="text-white font-semibold">ZYSK NETTO DZISIAJ:</span>
@@ -872,21 +858,21 @@ const App: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* ZYSK MIESIĘCZNY (od 1-go do dzisiaj) */}
                   <div className="bg-white/10 backdrop-blur-sm p-5 rounded-[20px] border border-white/20">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-3 h-3 rounded-full bg-amber-300"></div>
                       <h3 className="text-lg font-bold text-white">MIESIĘCZNY ZYSK NETTO</h3>
-                      <span className="text-white/80 text-xs bg-white/20 px-2 py-1 rounded">od 01.{new Date().getMonth()+1}.{new Date().getFullYear()}</span>
+                      <span className="text-white/80 text-xs bg-white/20 px-2 py-1 rounded">od 01.{new Date().getMonth() + 1}.{new Date().getFullYear()}</span>
                     </div>
-                    
+
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <span className="text-white/80 text-sm">Przychód miesiąc:</span>
                         <span className="text-white font-bold">€{netProfit.monthly.revenue.ebay.toFixed(2)} + {netProfit.monthly.revenue.allegro.toFixed(2)} PLN</span>
                       </div>
-                      
+
                       <div className="space-y-2">
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-white/70">- Koszty produktów:</span>
@@ -901,7 +887,7 @@ const App: React.FC = () => {
                           <span className="text-purple-300">€{(netProfit.monthly.costs.taxes * 0.664).toFixed(2)} + {(netProfit.monthly.costs.taxes * 0.336).toFixed(2)} PLN</span>
                         </div>
                       </div>
-                      
+
                       <div className="pt-3 border-t border-white/20">
                         <div className="flex justify-between items-center">
                           <span className="text-white font-semibold">ZYSK NETTO MIESIĄC:</span>
@@ -913,7 +899,7 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="mt-6 pt-4 border-t border-white/20 text-center">
                   <p className="text-white/80 text-sm">
                     📈 <strong>Dzisiejszy zysk dodany do miesięcznego.</strong> System automatycznie sumuje zyski od 1-go każdego miesiąca.
@@ -928,7 +914,7 @@ const App: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
                 <div className="bg-white p-5 rounded-[20px] border border-slate-200 shadow-sm">
                   <p className="text-sm font-semibold text-slate-500 mb-2">Koszty (miesiąc)</p>
-                  <p className="text-2xl font-black text-slate-900">{(netProfit.monthly.costs.products + netProfit.monthly.costs.fees + netProfit.monthly.costs.taxes).toLocaleString('pl-PL', {minimumFractionDigits: 2})} PLN</p>
+                  <p className="text-2xl font-black text-slate-900">{(netProfit.monthly.costs.products + netProfit.monthly.costs.fees + netProfit.monthly.costs.taxes).toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN</p>
                   <p className="text-xs text-slate-500 mt-1">Produkty + opłaty + podatki</p>
                 </div>
                 <div className="bg-white p-5 rounded-[20px] border border-emerald-200 shadow-sm">
@@ -969,7 +955,7 @@ const App: React.FC = () => {
                   <h1 className="text-4xl font-black text-slate-900 tracking-tight">Magazyn Główny</h1>
                   <p className="text-slate-400 font-medium mt-2">Zarządzaj inventory i synchronizuj sprzedaż.</p>
                 </div>
-                <button 
+                <button
                   onClick={() => setShowAddModal(true)}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white px-7 py-3.5 rounded-[20px] flex items-center gap-3 font-bold shadow-2xl shadow-indigo-500/30 transition-all hover:-translate-y-1 active:scale-95"
                 >
@@ -1011,7 +997,7 @@ const App: React.FC = () => {
                       Kwartalny
                     </button>
                   </div>
-                  
+
                   {/* Okres (miesiąc/kwartał) */}
                   <div className="flex gap-2 bg-slate-100 rounded-2xl p-1">
                     <button
@@ -1027,7 +1013,7 @@ const App: React.FC = () => {
                       Kwartał
                     </button>
                   </div>
-                  
+
                   <select
                     className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700"
                     value={selectedPeriod}
@@ -1043,7 +1029,7 @@ const App: React.FC = () => {
                   >
                     Odśwież
                   </button>
-                  
+
                   <button
                     onClick={exportToGoogleSheets}
                     className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 shadow-lg shadow-emerald-500/30 flex items-center gap-2"
@@ -1077,41 +1063,41 @@ const App: React.FC = () => {
                     <span className="text-white font-bold text-sm">{reportType === 'weekly' ? 'TYGODNIOWY' : reportType === 'monthly' ? 'MIESIĘCZNY' : 'KWARTALNY'}</span>
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                   {/* Przychód łącznie */}
                   <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
                     <p className="text-white/80 text-sm font-semibold mb-1">PRZYCHÓD</p>
-                    <p className="text-2xl font-black text-white">{(netProfit.monthly.revenue.ebay * 4.5 + netProfit.monthly.revenue.allegro).toLocaleString('pl-PL', {minimumFractionDigits: 2})} PLN</p>
+                    <p className="text-2xl font-black text-white">{(netProfit.monthly.revenue.ebay * 4.5 + netProfit.monthly.revenue.allegro).toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN</p>
                     <p className="text-white/60 text-xs mt-1">eBay: €{netProfit.monthly.revenue.ebay.toFixed(2)} + Allegro: {netProfit.monthly.revenue.allegro.toFixed(2)} PLN</p>
                   </div>
-                  
+
                   {/* Koszty szczegółowe */}
                   <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
                     <p className="text-white/80 text-sm font-semibold mb-1">KOSZTY PRODUKTÓW</p>
-                    <p className="text-2xl font-black text-rose-300">-{netProfit.monthly.costs.products.toLocaleString('pl-PL', {minimumFractionDigits: 2})} PLN</p>
+                    <p className="text-2xl font-black text-rose-300">-{netProfit.monthly.costs.products.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN</p>
                     <p className="text-white/60 text-xs mt-1">Zakupy towarów</p>
                   </div>
-                  
+
                   <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
                     <p className="text-white/80 text-sm font-semibold mb-1">OPŁATY</p>
-                    <p className="text-2xl font-black text-amber-300">-{netProfit.monthly.costs.fees.toLocaleString('pl-PL', {minimumFractionDigits: 2})} PLN</p>
+                    <p className="text-2xl font-black text-amber-300">-{netProfit.monthly.costs.fees.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN</p>
                     <p className="text-white/60 text-xs mt-1">Prowizje platform</p>
                   </div>
-                  
+
                   <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
                     <p className="text-white/80 text-sm font-semibold mb-1">PODATKI</p>
-                    <p className="text-2xl font-black text-purple-300">-{netProfit.monthly.costs.taxes.toLocaleString('pl-PL', {minimumFractionDigits: 2})} PLN</p>
+                    <p className="text-2xl font-black text-purple-300">-{netProfit.monthly.costs.taxes.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN</p>
                     <p className="text-white/60 text-xs mt-1">VAT i inne</p>
                   </div>
-                  
+
                   <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
                     <p className="text-white/80 text-sm font-semibold mb-1">SUMA KOSZTÓW</p>
-                    <p className="text-2xl font-black text-cyan-300">-{(netProfit.monthly.costs.products + netProfit.monthly.costs.fees + netProfit.monthly.costs.taxes).toLocaleString('pl-PL', {minimumFractionDigits: 2})} PLN</p>
+                    <p className="text-2xl font-black text-cyan-300">-{(netProfit.monthly.costs.products + netProfit.monthly.costs.fees + netProfit.monthly.costs.taxes).toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN</p>
                     <p className="text-white/60 text-xs mt-1">Wszystkie koszty</p>
                   </div>
                 </div>
-                
+
                 {/* CZYSTY ZYSK */}
                 <div className="mt-6 pt-6 border-t border-white/20">
                   <div className="flex items-center justify-between">
@@ -1120,11 +1106,11 @@ const App: React.FC = () => {
                       <p className="text-white/70 text-sm">Po odjęciu WSZYSTKICH kosztów</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-3xl font-black text-emerald-300">{(netProfit.monthly.net.ebay * 4.5 + netProfit.monthly.net.allegro).toLocaleString('pl-PL', {minimumFractionDigits: 0})} PLN</p>
+                      <p className="text-3xl font-black text-emerald-300">{(netProfit.monthly.net.ebay * 4.5 + netProfit.monthly.net.allegro).toLocaleString('pl-PL', { minimumFractionDigits: 0 })} PLN</p>
                       <p className="text-white/60 text-xs">≈ €{(netProfit.monthly.net.ebay + netProfit.monthly.net.allegro / 4.5).toFixed(0)} (kurs 4.5)</p>
                     </div>
                   </div>
-                  
+
                   <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                     <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
                       <span className="text-white/80">Marża netto:</span>
@@ -1169,12 +1155,10 @@ const App: React.FC = () => {
 
       {/* Notifications */}
       {notification && (
-        <div className={`fixed bottom-10 right-10 px-8 py-5 rounded-[24px] shadow-2xl flex items-center gap-5 animate-in slide-in-from-right-10 duration-500 z-50 bg-slate-900 text-white border-l-8 ${
-          notification.type === 'success' ? 'border-emerald-500' : 'border-rose-500'
-        }`}>
-          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
-             notification.type === 'success' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+        <div className={`fixed bottom-10 right-10 px-8 py-5 rounded-[24px] shadow-2xl flex items-center gap-5 animate-in slide-in-from-right-10 duration-500 z-50 bg-slate-900 text-white border-l-8 ${notification.type === 'success' ? 'border-emerald-500' : 'border-rose-500'
           }`}>
+          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${notification.type === 'success' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+            }`}>
             {notification.type === 'success' ? '✓' : '✕'}
           </div>
           <div>
@@ -1196,7 +1180,7 @@ const App: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Nazwa</label>
-                <input 
+                <input
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                   value={addForm.name}
                   onChange={(e) => setAddForm(prev => ({ ...prev, name: e.target.value }))}
@@ -1205,7 +1189,7 @@ const App: React.FC = () => {
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">SKU</label>
-                <input 
+                <input
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                   value={addForm.sku}
                   onChange={(e) => setAddForm(prev => ({ ...prev, sku: e.target.value }))}
@@ -1215,7 +1199,7 @@ const App: React.FC = () => {
 
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Typ zakupu</label>
-                <select 
+                <select
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                   value={addForm.purchase_type}
                   onChange={(e) => setAddForm(prev => ({ ...prev, purchase_type: e.target.value as any }))}
@@ -1226,7 +1210,7 @@ const App: React.FC = () => {
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Typ dokumentu</label>
-                <select 
+                <select
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                   value={addForm.document_type}
                   onChange={(e) => setAddForm(prev => ({ ...prev, document_type: e.target.value as any }))}
@@ -1242,7 +1226,7 @@ const App: React.FC = () => {
 
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Koszt zakupu (PLN)</label>
-                <input 
+                <input
                   type="number"
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                   value={addForm.item_cost}
@@ -1251,7 +1235,7 @@ const App: React.FC = () => {
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Stan magazynu (szt)</label>
-                <input 
+                <input
                   type="number"
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                   value={addForm.total_stock}
@@ -1261,7 +1245,7 @@ const App: React.FC = () => {
 
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Cena Allegro</label>
-                <input 
+                <input
                   type="number"
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                   value={addForm.allegro_price}
@@ -1270,7 +1254,7 @@ const App: React.FC = () => {
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Cena eBay</label>
-                <input 
+                <input
                   type="number"
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                   value={addForm.ebay_price}
@@ -1280,13 +1264,13 @@ const App: React.FC = () => {
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2">
-              <button 
+              <button
                 onClick={() => { setShowAddModal(false); resetAddForm(); }}
                 className="px-4 py-2 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-700"
               >
                 Anuluj
               </button>
-              <button 
+              <button
                 onClick={handleAddItem}
                 className="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-500/30"
               >

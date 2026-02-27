@@ -1,25 +1,18 @@
 /**
- * Dzidek Sync endpoint - komunikacja z głównym serwerem Dzidek
- * GET: pobiera dane sprzedażowe
- * POST: wysyła komendy do workerów
+ * Dzidek Sync endpoint - komunikacja z zewnętrznymi API
+ * GET: pobiera dane sprzedażowe z nowego Google Apps Script
+ * POST: wysyła komendy do workerów Dzidka
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { PlatformReport } from '../glowny_magazyn__allegro-ebay-main/types';
 
 export const runtime = 'nodejs';
 
+// Endpoint GAS wprowadzony przez użytkownika (Uwaga: to link do edytora, do działania w produkcji wymagany jest link Deploy /exec)
+const GAS_URL = 'https://script.google.com/u/0/home/projects/1Sh_brzCdhNclr77chHZZyWfRzhMhTYKiHKrci9STvF32tNv9aqB_bg1X/edit';
 const DZIDEK_URL = 'https://api.dzidek.de';
 const REQUEST_TIMEOUT = 30000;
-
-interface DzidekSalesResponse {
-  success: boolean;
-  data?: {
-    allegro?: { revenue: number; orders: number; items: Array<{ sku: string; soldQty: number; gross: number }> };
-    ebay?: { revenue: number; orders: number; items: Array<{ sku: string; soldQty: number; gross: number }> };
-  };
-  timestamp?: string;
-  error?: string;
-}
 
 interface WorkerCommandRequest {
   worker: 'allegro' | 'ebay' | 'both';
@@ -27,38 +20,29 @@ interface WorkerCommandRequest {
   params?: Record<string, any>;
 }
 
-async function fetchDzidekSales(): Promise<DzidekSalesResponse> {
+async function fetchGasReport(): Promise<{ success: boolean; data?: { allegro: PlatformReport }; timestamp?: string; error?: string }> {
   try {
-    const response = await fetch(`${DZIDEK_URL}/api/warehouse/sales`, {
+    const response = await fetch(GAS_URL, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      headers: { 'Accept': 'application/json' },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT),
     });
 
     if (!response.ok) {
-      return { success: false, error: `Dzidek returned ${response.status}: ${response.statusText}` };
+      return { success: false, error: `Google Apps Script returned ${response.status}: ${response.statusText}` };
     }
 
-    const data = await response.json();
-    return { success: true, data, timestamp: new Date().toISOString() };
+    const gasData = await response.json();
+    return {
+      success: true,
+      data: {
+        allegro: gasData as PlatformReport,
+      },
+      timestamp: new Date().toISOString(),
+    };
   } catch (error: any) {
-    console.error('[dzidek-sync] Fetch error:', error);
+    console.error('[dzidek-sync] Fetch GAS error:', error);
     return { success: false, error: error.message || 'Connection failed' };
-  }
-}
-
-async function fetchDzidekInventory(): Promise<any> {
-  try {
-    const response = await fetch(`${DZIDEK_URL}/api/warehouse/inventory`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT),
-    });
-
-    if (!response.ok) return { success: false, error: `Status ${response.status}` };
-    return await response.json();
-  } catch (error: any) {
-    return { success: false, error: error.message };
   }
 }
 
@@ -89,15 +73,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // GET - pobierz dane sprzedażowe
+  // GET - pobierz dane sprzedażowe (GAS)
   if (req.method === 'GET') {
-    const { type } = req.query;
     try {
-      if (type === 'inventory') {
-        const inventory = await fetchDzidekInventory();
-        return res.status(200).json(inventory);
-      }
-      const sales = await fetchDzidekSales();
+      const sales = await fetchGasReport();
       return res.status(200).json(sales);
     } catch (error: any) {
       console.error('[dzidek-sync] GET error:', error);
@@ -105,7 +84,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // POST - wyślij komendę do workerów
+  // POST - wyślij komendę do workerów (Legacy API)
   if (req.method === 'POST') {
     try {
       const body = req.body as WorkerCommandRequest;
