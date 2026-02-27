@@ -9,8 +9,8 @@ import type { PlatformReport } from '../glowny_magazyn__allegro-ebay-main/types'
 
 export const runtime = 'nodejs';
 
-// Endpoint GAS wprowadzony przez użytkownika (Uwaga: to link do edytora, do działania w produkcji wymagany jest link Deploy /exec)
-const GAS_URL = 'https://script.google.com/u/0/home/projects/1Sh_brzCdhNclr77chHZZyWfRzhMhTYKiHKrci9STvF32tNv9aqB_bg1X/edit';
+// Endpoint GAS zdefiniowany w zmiennych środowiskowych Vercel-u
+const GAS_URL = process.env.GAS_URL || 'https://script.google.com/u/0/home/projects/1Sh_brzCdhNclr77chHZZyWfRzhMhTYKiHKrci9STvF32tNv9aqB_bg1X/edit';
 const DZIDEK_URL = 'https://api.dzidek.de';
 const REQUEST_TIMEOUT = 30000;
 
@@ -29,7 +29,16 @@ async function fetchGasReport(): Promise<{ success: boolean; data?: { allegro: P
     });
 
     if (!response.ok) {
-      return { success: false, error: `Google Apps Script returned ${response.status}: ${response.statusText}` };
+      const errorText = await response.text();
+      console.error(`[dzidek-sync] GAS Error ${response.status}:`, errorText);
+      return { success: false, error: `Google Apps Script returned ${response.status}: ${errorText.substring(0, 100)}...` };
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const unexpectedText = await response.text();
+      console.error(`[dzidek-sync] Unexpected content type (${contentType}):`, unexpectedText.substring(0, 500));
+      return { success: false, error: `Expected JSON, but received HTML or other format. Did you use the /exec deployment link?` };
     }
 
     const gasData = await response.json();
