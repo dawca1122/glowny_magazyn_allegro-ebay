@@ -5,7 +5,6 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { PlatformReport } from '../glowny_magazyn__allegro-ebay-main/types';
 
 export const runtime = 'nodejs';
 
@@ -20,7 +19,7 @@ interface WorkerCommandRequest {
   params?: Record<string, any>;
 }
 
-async function fetchGasReport(): Promise<{ success: boolean; data?: { allegro: PlatformReport }; timestamp?: string; error?: string }> {
+async function fetchGasReport(): Promise<{ success: boolean; data?: { allegro: any }; timestamp?: string; error?: string }> {
   try {
     const response = await fetch(GAS_URL, {
       method: 'GET',
@@ -45,7 +44,7 @@ async function fetchGasReport(): Promise<{ success: boolean; data?: { allegro: P
     return {
       success: true,
       data: {
-        allegro: gasData as PlatformReport,
+        allegro: gasData as any,
       },
       timestamp: new Date().toISOString(),
     };
