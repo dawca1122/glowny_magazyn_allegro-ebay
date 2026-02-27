@@ -617,7 +617,7 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-2 mb-2">
                       <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
                       <h4 className="font-semibold text-slate-800">Allegro</h4>
-                      <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">PROTECH-SHOP</span>
+                      <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">protech-shop</span>
                     </div>
 
                     {dailySalesLoading ? (
@@ -625,13 +625,12 @@ const App: React.FC = () => {
                         <div className="h-8 bg-slate-100 rounded animate-pulse"></div>
                         <div className="h-8 bg-slate-100 rounded animate-pulse"></div>
                       </div>
-                    ) : dailySalesDropdown.allegro.length > 0 ? (
+                    ) : dailySalesDropdown.allegro?.length > 0 ? (
                       <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-                        {dailySalesDropdown.allegro.map((item, index) => (
-                          <div key={index} className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-lg">
-                            <span className="text-sm text-slate-700 truncate">{item.productName}</span>
-                            <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded">
-                              {item.soldToday} szt.
+                        {dailySalesDropdown.allegro?.map((item, index) => (
+                          <div key={index} className="flex items-center justify-start gap-2 p-2 hover:bg-slate-50 rounded-lg">
+                            <span className="text-sm text-slate-700 truncate" title={item.productName}>
+                              {item.productName} - <span className="font-bold text-indigo-600">{item.soldToday} szt.</span>
                             </span>
                           </div>
                         ))}
@@ -641,12 +640,14 @@ const App: React.FC = () => {
                     )}
                   </div>
 
+                  <hr className="border-slate-100 my-4" />
+
                   {/* eBay section */}
                   <div className="mb-2">
                     <div className="flex items-center gap-2 mb-2">
                       <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
                       <h4 className="font-semibold text-slate-800">eBay</h4>
-                      <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">protech-shop</span>
+                      <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">Olmag_Zone</span>
                     </div>
 
                     {dailySalesLoading ? (
@@ -654,13 +655,12 @@ const App: React.FC = () => {
                         <div className="h-8 bg-slate-100 rounded animate-pulse"></div>
                         <div className="h-8 bg-slate-100 rounded animate-pulse"></div>
                       </div>
-                    ) : dailySalesDropdown.ebay.length > 0 ? (
+                    ) : dailySalesDropdown.ebay?.length > 0 ? (
                       <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-                        {dailySalesDropdown.ebay.map((item, index) => (
-                          <div key={index} className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-lg">
-                            <span className="text-sm text-slate-700 truncate">{item.productName}</span>
-                            <span className="text-sm font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">
-                              {item.soldToday} szt.
+                        {dailySalesDropdown.ebay?.map((item, index) => (
+                          <div key={index} className="flex items-center justify-start gap-2 p-2 hover:bg-slate-50 rounded-lg">
+                            <span className="text-sm text-slate-700 truncate" title={item.productName}>
+                              {item.productName} - <span className="font-bold text-emerald-600">{item.soldToday} szt.</span>
                             </span>
                           </div>
                         ))}
