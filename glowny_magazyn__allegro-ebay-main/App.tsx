@@ -1,6 +1,9 @@
 ﻿
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Package, LogOut, Bell, Search, Plus, Database, CloudOff, TrendingUp, ShoppingBag, FileCheck, BarChart3, LineChart } from 'lucide-react';
+import {
+  LayoutDashboard, Package, LogOut, Bell, Search, Plus, Database, CloudOff,
+  TrendingUp, ShoppingBag, FileCheck, BarChart3, LineChart, Menu, X
+} from 'lucide-react';
 import InventoryTable from './InventoryTable';
 import { inventoryService, isConfigured } from './magazynClient';
 import { InventoryItem, SalesSummaryMap, PeriodReport, ReportPeriodType, ChannelReport } from './types';
@@ -20,6 +23,7 @@ const safeNum = (val: any, fallback = 0): number => {
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activePlatform, setActivePlatform] = useState<Platform>('overview');
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -427,9 +431,20 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="flex h-screen bg-[#f8fafc] overflow-hidden text-slate-900 font-['Inter']">
+    <div className="flex h-screen bg-[#f8fafc] overflow-hidden text-slate-900 font-['Inter'] relative">
+      {/* Sidebar Overlay for Mobile */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 text-white flex flex-col shrink-0 shadow-2xl">
+      <aside className={`
+        fixed inset-y-0 left-0 w-64 bg-slate-900 text-white flex flex-col shrink-0 shadow-2xl z-[100] transition-transform duration-300 lg:translate-x-0 lg:static
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
         <div className="p-8 border-b border-slate-800 flex items-center gap-3">
           <div className="p-2.5 bg-indigo-600 rounded-xl shadow-lg shadow-indigo-500/20">
             <ShoppingBag className="w-6 h-6 text-white" />
@@ -463,7 +478,7 @@ const App: React.FC = () => {
             <span>Raporty</span>
           </button>
           <button
-            onClick={() => setCurrentView('wykresy')}
+            onClick={() => { setCurrentView('wykresy'); setIsSidebarOpen(false); }}
             className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-semibold ${currentView === 'wykresy' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
               }`}
           >
@@ -494,121 +509,109 @@ const App: React.FC = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden w-full">
         {/* Header */}
-        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-10 shrink-0 shadow-sm z-10">
-          <div className="flex items-center gap-4 bg-slate-50 px-5 py-2.5 rounded-2xl w-[450px] border border-slate-100 focus-within:border-indigo-300 focus-within:ring-4 focus-within:ring-indigo-500/5 transition-all">
-            <Search className="w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Szukaj po nazwie lub SKU..."
-              className="bg-transparent border-none focus:outline-none text-sm w-full font-medium"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-10 shrink-0 shadow-sm z-[80]">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 lg:hidden text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            <div className="hidden sm:flex items-center gap-4 bg-slate-50 px-5 py-2.5 rounded-2xl sm:w-[250px] lg:w-[450px] border border-slate-100 focus-within:border-indigo-300 focus-within:ring-4 focus-within:ring-indigo-500/5 transition-all">
+              <Search className="w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Szukaj SKU..."
+                className="bg-transparent border-none focus:outline-none text-sm w-full font-medium"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2 sm:gap-6">
             {/* Dropdown dziennej sprzedaży */}
             <div className="relative group">
-              <button className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl font-semibold text-sm transition-all border border-indigo-200">
+              <button className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl font-semibold text-xs sm:text-sm transition-all border border-indigo-200">
                 <ShoppingBag className="w-4 h-4" />
-                <span>Dzisiejsza sprzedaż</span>
+                <span className="hidden xs:inline">Dziś</span>
                 <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
 
               {/* Dropdown content */}
-              <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+              <div className="absolute right-0 top-full mt-2 w-72 sm:w-96 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-bold text-slate-900">Sprzedaż dzisiaj ({new Date().toLocaleDateString('pl-PL')})</h3>
-                    <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">Auto-refresh</span>
+                    <h3 className="font-bold text-slate-900 text-xs sm:text-sm">Sprzedaż dzisiaj ({new Date().toLocaleDateString('pl-PL')})</h3>
                   </div>
 
                   {/* Allegro section */}
                   <div className="mb-4">
                     <div className="flex items-center gap-2 mb-2">
-                      <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
-                      <h4 className="font-semibold text-slate-800">Allegro</h4>
-                      <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">protech-shop</span>
+                      <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                      <h4 className="font-bold text-slate-800 text-xs">Allegro</h4>
                     </div>
 
                     {dailySalesLoading ? (
-                      <div className="space-y-2">
-                        <div className="h-8 bg-slate-100 rounded animate-pulse"></div>
-                        <div className="h-8 bg-slate-100 rounded animate-pulse"></div>
-                      </div>
+                      <div className="h-4 bg-slate-100 rounded animate-pulse w-full"></div>
                     ) : dailySalesDropdown.allegro?.length > 0 ? (
-                      <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
                         {dailySalesDropdown.allegro?.map((item, index) => (
-                          <div key={index} className="flex items-center justify-start gap-2 p-2 hover:bg-slate-50 rounded-lg">
-                            <span className="text-sm text-slate-700 truncate" title={item.productName}>
-                              {item.productName} - <span className="font-bold text-indigo-600">{item.soldToday} szt.</span>
-                            </span>
+                          <div key={index} className="text-[11px] text-slate-600 truncate py-0.5">
+                            • {item.productName} - <span className="font-bold text-indigo-600">{item.soldToday} szt.</span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-slate-500 italic">Brak sprzedaży dzisiaj</p>
+                      <p className="text-[11px] text-slate-400 italic">Brak sprzedaży</p>
                     )}
                   </div>
-
-                  <hr className="border-slate-100 my-4" />
 
                   {/* eBay section */}
                   <div className="mb-2">
                     <div className="flex items-center gap-2 mb-2">
-                      <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                      <h4 className="font-semibold text-slate-800">eBay</h4>
-                      <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">Olmag_Zone</span>
+                      <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                      <h4 className="font-bold text-slate-800 text-xs">eBay</h4>
                     </div>
 
                     {dailySalesLoading ? (
-                      <div className="space-y-2">
-                        <div className="h-8 bg-slate-100 rounded animate-pulse"></div>
-                        <div className="h-8 bg-slate-100 rounded animate-pulse"></div>
-                      </div>
+                      <div className="h-4 bg-slate-100 rounded animate-pulse w-full"></div>
                     ) : dailySalesDropdown.ebay?.length > 0 ? (
-                      <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
                         {dailySalesDropdown.ebay?.map((item, index) => (
-                          <div key={index} className="flex items-center justify-start gap-2 p-2 hover:bg-slate-50 rounded-lg">
-                            <span className="text-sm text-slate-700 truncate" title={item.productName}>
-                              {item.productName} - <span className="font-bold text-emerald-600">{item.soldToday} szt.</span>
-                            </span>
+                          <div key={index} className="text-[11px] text-slate-600 truncate py-0.5">
+                            • {item.productName} - <span className="font-bold text-emerald-600">{item.soldToday} szt.</span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-slate-500 italic">Brak sprzedaży dzisiaj</p>
+                      <p className="text-[11px] text-slate-400 italic">Brak sprzedaży</p>
                     )}
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-200 text-xs text-slate-500">
-                    <p>🔄 Ostatnia aktualizacja: {new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}</p>
-                    <p>📊 Łącznie sprzedanych: {dailySalesDropdown.allegro.reduce((sum, item) => sum + item.soldToday, 0) + dailySalesDropdown.ebay.reduce((sum, item) => sum + item.soldToday, 0)} szt.</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <button className="relative text-slate-400 hover:text-indigo-600 transition-all p-2.5 hover:bg-indigo-50 rounded-xl">
-              <Bell className="w-6 h-6" />
-              <span className="absolute top-2 right-2 w-4 h-4 bg-rose-500 border-2 border-white rounded-full text-[8px] flex items-center justify-center text-white font-black">2</span>
+            <button className="relative text-slate-400 hover:text-indigo-600 transition-all p-2 sm:p-2.5 hover:bg-indigo-50 rounded-xl">
+              <Bell className="w-5 h-5 sm:w-6 h-6" />
+              <span className="absolute top-1 right-1 sm:top-2 sm:right-2 w-3 h-3 sm:w-4 sm:h-4 bg-rose-500 border-2 border-white rounded-full text-[7px] sm:text-[8px] flex items-center justify-center text-white font-black">2</span>
             </button>
-            <div className="flex items-center gap-4 border-l pl-6 border-slate-100">
-              <div className="text-right">
-                <p className="text-sm font-extrabold text-slate-800 leading-none">Admin User</p>
-                <p className="text-[11px] text-indigo-500 font-bold uppercase tracking-wider mt-1">Główny Manager</p>
+            <div className="flex items-center gap-2 sm:gap-4 border-l pl-3 sm:pl-6 border-slate-100">
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-extrabold text-slate-800 leading-none">Admin</p>
+                <p className="text-[11px] text-indigo-500 font-bold uppercase tracking-wider mt-1">Manager</p>
               </div>
-              <div className="w-11 h-11 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black shadow-xl shadow-indigo-500/20">AU</div>
+              <div className="w-8 h-8 sm:w-11 sm:h-11 bg-indigo-600 rounded-xl sm:rounded-2xl flex items-center justify-center text-white font-black shadow-xl shadow-indigo-500/20 text-xs sm:text-base">AU</div>
             </div>
           </div>
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-auto p-10">
+        <div className="flex-1 overflow-auto p-4 lg:p-10 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
           {currentView === 'dashboard' ? (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
               <div className="mb-10">
@@ -617,32 +620,30 @@ const App: React.FC = () => {
               </div>
 
               {/* Split Screen Dashboard - eBay LEFT, Allegro RIGHT */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Split Screen Dashboard - eBay LEFT, Allegro RIGHT */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
 
                 {/* eBay - LEFT SIDE */}
-                <div className="bg-white p-6 rounded-[24px] border border-emerald-200 shadow-lg">
+                <div className="bg-white p-4 sm:p-6 rounded-[24px] border border-emerald-200 shadow-lg">
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="w-4 h-4 rounded-full bg-emerald-500"></div>
-                    <h2 className="text-2xl font-bold text-slate-900">eBay Dashboard</h2>
-                    <span className="text-sm text-emerald-600 font-semibold bg-emerald-50 px-3 py-1.5 rounded-full">DZISIAJ</span>
+                    <div className="w-3 sm:w-4 h-3 sm:h-4 rounded-full bg-emerald-500"></div>
+                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900">eBay Dashboard</h2>
+                    <span className="text-[10px] sm:text-sm text-emerald-600 font-semibold bg-emerald-50 px-2 sm:px-3 py-1 rounded-full whitespace-nowrap">DZISIAJ</span>
                   </div>
 
-                  {/* eBay Stats - dane z Dzidek API */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <p className="text-sm text-emerald-700 font-semibold mb-1">Przychód dziś (eBay)</p>
-                      <p className="text-2xl font-black text-emerald-900">€{safeNum(netProfit.daily.revenue.ebay).toFixed(2)}</p>
-                      <p className="text-xs text-emerald-600 mt-1">{netProfit.daily.revenue.ebay > 0 ? 'Dane z Arkusza LIVE' : 'Sklep zamknięty'}</p>
+                  {/* eBay Stats */}
+                  <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
+                    <div className="p-3 sm:p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                      <p className="text-[10px] sm:text-sm text-emerald-700 font-semibold mb-1">Przychód (eBay)</p>
+                      <p className="text-lg sm:text-2xl font-black text-emerald-900">€{safeNum(netProfit.daily.revenue.ebay).toFixed(2)}</p>
                     </div>
-                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <p className="text-sm text-emerald-700 font-semibold mb-1">Zysk netto dziś</p>
-                      <p className="text-2xl font-black text-emerald-900">€{safeNum(netProfit.daily.net.ebay).toFixed(2)}</p>
-                      <p className="text-xs text-emerald-600 mt-1">Po kosztach</p>
+                    <div className="p-3 sm:p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                      <p className="text-[10px] sm:text-sm text-emerald-700 font-semibold mb-1">Zysk netto</p>
+                      <p className="text-lg sm:text-2xl font-black text-emerald-900">€{safeNum(netProfit.daily.net.ebay).toFixed(2)}</p>
                     </div>
-                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <p className="text-sm text-emerald-700 font-semibold mb-1">Status</p>
-                      <p className="text-2xl font-black text-emerald-900">{netProfit.daily.revenue.ebay > 0 ? 'Aktywny' : 'Zamknięty'}</p>
-                      <p className="text-xs text-emerald-600 mt-1">{netProfit.daily.revenue.ebay > 0 ? 'Sprzedaż aktywna' : 'Brak sprzedaży'}</p>
+                    <div className="p-3 sm:p-4 bg-emerald-50 rounded-xl border border-emerald-100 xs:col-span-2 sm:col-span-1">
+                      <p className="text-[10px] sm:text-sm text-emerald-700 font-semibold mb-1">Status</p>
+                      <p className="text-lg sm:text-2xl font-black text-emerald-900">{netProfit.daily.revenue.ebay > 0 ? 'Aktywny' : 'Zamknięty'}</p>
                     </div>
                   </div>
 
@@ -650,75 +651,48 @@ const App: React.FC = () => {
                   <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
                     <div className="flex items-center gap-2 mb-2">
                       <div className={`w-3 h-3 rounded-full ${netProfit.daily.revenue.ebay > 0 ? 'bg-emerald-500' : 'bg-slate-400'}`}></div>
-                      <p className="text-sm font-semibold text-slate-700">eBay Worker Status</p>
+                      <p className="text-xs sm:text-sm font-semibold text-slate-700">eBay Worker Status</p>
                     </div>
-                    <p className="text-sm text-slate-600">
+                    <p className="text-[11px] sm:text-sm text-slate-600">
                       {netProfit.daily.revenue.ebay > 0
                         ? `Aktywna sprzedaż - przychód €${safeNum(netProfit.daily.revenue.ebay).toFixed(2)}`
-                        : 'Sklep eBay zamknięty - brak aktywnej sprzedaży'
+                        : 'Sklep eBay zamknięty'
                       }
                     </p>
-                  </div>
-
-                  <div className="mt-4 text-sm text-slate-500">
-                    <p>📊 <span className="font-semibold">Źródło danych:</span> Arkusz Google LIVE</p>
-                    <p>📨 <span className="font-semibold">Miesięcznie:</span> €{safeNum(netProfit.monthly.revenue.ebay).toFixed(2)}</p>
                   </div>
                 </div>
 
                 {/* Allegro - RIGHT SIDE */}
-                <div className="bg-white p-6 rounded-[24px] border border-indigo-200 shadow-lg">
+                <div className="bg-white p-4 sm:p-6 rounded-[24px] border border-indigo-200 shadow-lg">
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="w-4 h-4 rounded-full bg-indigo-500"></div>
-                    <h2 className="text-2xl font-bold text-slate-900">Allegro Dashboard</h2>
-                    <span className="text-sm text-indigo-600 font-semibold bg-indigo-50 px-3 py-1.5 rounded-full">DZISIAJ</span>
+                    <div className="w-3 sm:w-4 h-3 sm:h-4 rounded-full bg-indigo-500"></div>
+                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Allegro Dashboard</h2>
+                    <span className="text-[10px] sm:text-sm text-indigo-600 font-semibold bg-indigo-50 px-2 sm:px-3 py-1 rounded-full whitespace-nowrap">DZISIAJ</span>
                   </div>
 
-                  {/* Allegro Stats - dane z Dzidek API */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
-                      <p className="text-sm text-indigo-700 font-semibold mb-1">Przychód dziś (Allegro)</p>
-                      <p className="text-2xl font-black text-indigo-900">{safeNum(netProfit.daily.revenue.allegro).toFixed(2)} PLN</p>
-                      <p className="text-xs text-indigo-600 mt-1">{netProfit.daily.revenue.allegro > 0 ? 'Dane z Arkusza LIVE' : 'Brak sprzedaży dziś'}</p>
+                  {/* Allegro Stats */}
+                  <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
+                    <div className="p-3 sm:p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                      <p className="text-[10px] sm:text-sm text-indigo-700 font-semibold mb-1">Przychód (Allegro)</p>
+                      <p className="text-lg sm:text-2xl font-black text-indigo-900">{safeNum(netProfit.daily.revenue.allegro).toFixed(0)} PLN</p>
                     </div>
-                    <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
-                      <p className="text-sm text-indigo-700 font-semibold mb-1">Zysk netto dziś</p>
-                      <p className="text-2xl font-black text-indigo-900">{safeNum(netProfit.daily.net.allegro).toFixed(2)} PLN</p>
-                      <p className="text-xs text-indigo-600 mt-1">Po kosztach</p>
+                    <div className="p-3 sm:p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                      <p className="text-[10px] sm:text-sm text-indigo-700 font-semibold mb-1">Zysk netto</p>
+                      <p className="text-lg sm:text-2xl font-black text-indigo-900">{safeNum(netProfit.daily.net.allegro).toFixed(0)} PLN</p>
                     </div>
-                    <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
-                      <p className="text-sm text-indigo-700 font-semibold mb-1">Status</p>
-                      <p className="text-2xl font-black text-indigo-900">{netProfit.daily.revenue.allegro > 0 ? 'Aktywny' : 'Oczekuje'}</p>
-                      <p className="text-xs text-indigo-600 mt-1">{netProfit.daily.revenue.allegro > 0 ? 'Sprzedaż aktywna' : 'API autoryzowane'}</p>
+                    <div className="p-3 sm:p-4 bg-indigo-50 rounded-xl border border-indigo-100 xs:col-span-2 sm:col-span-1">
+                      <p className="text-[10px] sm:text-sm text-indigo-700 font-semibold mb-1">Status</p>
+                      <p className="text-lg sm:text-2xl font-black text-indigo-900">{netProfit.daily.revenue.allegro > 0 ? 'Aktywny' : 'Oczekuje'}</p>
                     </div>
                   </div>
 
-                  {/* Allegro Status - API DZIAŁA */}
+                  {/* Allegro Status */}
                   <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-emerald-200">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                      <p className="text-sm font-semibold text-emerald-800">✅ Allegro API autoryzowane</p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                      <p className="text-xs sm:text-sm font-semibold text-emerald-800">✅ Allegro API OK</p>
                     </div>
-                    <ul className="text-sm text-emerald-700 space-y-1 mb-4">
-                      <li>✅ <span className="font-semibold">Konto:</span> PROTECH-SHOP (ID: 10617893)</li>
-                      <li>✅ <span className="font-semibold">Tokeny:</span> Ważne do 09.05.2026</li>
-                      <li>✅ <span className="font-semibold">Worker:</span> Gotowy do uruchomienia</li>
-                      <li>✅ <span className="font-semibold">Dane:</span> Pobrane na żywo z API</li>
-                    </ul>
-
-                    <div className="text-center">
-                      <p className="text-sm text-emerald-600">
-                        🎉 Autoryzacja zakończona sukcesem!
-                      </p>
-                      <p className="text-xs text-emerald-500 mt-1">
-                        Worker Allegro uruchomi się codziennie o 21:00 CET
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 text-sm text-slate-500">
-                    <p>🔧 <span className="font-semibold">Worker Allegro:</span> Codziennie 21:00 CET</p>
-                    <p>💾 <span className="font-semibold">Zapis danych:</span> Do plików JSON</p>
+                    <p className="text-[11px] sm:text-sm text-emerald-700">Tokeny ważne do 09.05.2026</p>
                   </div>
                 </div>
               </div>
@@ -1053,133 +1027,137 @@ const App: React.FC = () => {
       </main>
 
       {/* Notifications */}
-      {notification && (
-        <div className={`fixed bottom-10 right-10 px-8 py-5 rounded-[24px] shadow-2xl flex items-center gap-5 animate-in slide-in-from-right-10 duration-500 z-50 bg-slate-900 text-white border-l-8 ${notification.type === 'success' ? 'border-emerald-500' : 'border-rose-500'
-          }`}>
-          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${notification.type === 'success' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+      {
+        notification && (
+          <div className={`fixed bottom-10 right-10 px-8 py-5 rounded-[24px] shadow-2xl flex items-center gap-5 animate-in slide-in-from-right-10 duration-500 z-50 bg-slate-900 text-white border-l-8 ${notification.type === 'success' ? 'border-emerald-500' : 'border-rose-500'
             }`}>
-            {notification.type === 'success' ? '✓' : '✕'}
-          </div>
-          <div>
-            <p className="font-black text-sm">{notification.message}</p>
-            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">System Alert</p>
-          </div>
-          <button onClick={() => setNotification(null)} className="ml-6 text-slate-600 hover:text-white transition-colors">✕</button>
-        </div>
-      )}
-
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-[28px] shadow-2xl border border-slate-100 w-full max-w-2xl p-8 space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xl font-black text-slate-900">Dodaj nowy towar</h3>
-              <button className="text-slate-400 hover:text-slate-700" onClick={() => { setShowAddModal(false); resetAddForm(); }}>✕</button>
+            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${notification.type === 'success' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+              }`}>
+              {notification.type === 'success' ? '✓' : '✕'}
             </div>
+            <div>
+              <p className="font-black text-sm">{notification.message}</p>
+              <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">System Alert</p>
+            </div>
+            <button onClick={() => setNotification(null)} className="ml-6 text-slate-600 hover:text-white transition-colors">✕</button>
+          </div>
+        )
+      }
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Nazwa</label>
-                <input
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  value={addForm.name}
-                  onChange={(e) => setAddForm(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Nazwa produktu"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">SKU</label>
-                <input
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  value={addForm.sku}
-                  onChange={(e) => setAddForm(prev => ({ ...prev, sku: e.target.value }))}
-                  placeholder="np. SW-V2-PRO-BLK"
-                />
+      {
+        showAddModal && (
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white rounded-[28px] shadow-2xl border border-slate-100 w-full max-w-2xl p-8 space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-black text-slate-900">Dodaj nowy towar</h3>
+                <button className="text-slate-400 hover:text-slate-700" onClick={() => { setShowAddModal(false); resetAddForm(); }}>✕</button>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Typ zakupu</label>
-                <select
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  value={addForm.purchase_type}
-                  onChange={(e) => setAddForm(prev => ({ ...prev, purchase_type: e.target.value as any }))}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Nazwa</label>
+                  <input
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    value={addForm.name}
+                    onChange={(e) => setAddForm(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Nazwa produktu"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">SKU</label>
+                  <input
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    value={addForm.sku}
+                    onChange={(e) => setAddForm(prev => ({ ...prev, sku: e.target.value }))}
+                    placeholder="np. SW-V2-PRO-BLK"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Typ zakupu</label>
+                  <select
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    value={addForm.purchase_type}
+                    onChange={(e) => setAddForm(prev => ({ ...prev, purchase_type: e.target.value as any }))}
+                  >
+                    <option value="Faktura">Faktura</option>
+                    <option value="Gotówka">Gotówka</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Typ dokumentu</label>
+                  <select
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    value={addForm.document_type}
+                    onChange={(e) => setAddForm(prev => ({ ...prev, document_type: e.target.value as any }))}
+                  >
+                    <option value="Typ A">Typ A</option>
+                    <option value="Typ B">Typ B</option>
+                    <option value="Typ C">Typ C</option>
+                    <option value="Typ D">Typ D</option>
+                    <option value="Typ E">Typ E</option>
+                    <option value="Typ F">Typ F</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Koszt zakupu (PLN)</label>
+                  <input
+                    type="number"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    value={addForm.item_cost}
+                    onChange={(e) => setAddForm(prev => ({ ...prev, item_cost: parseFloat(e.target.value) || 0 }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Stan magazynu (szt)</label>
+                  <input
+                    type="number"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    value={addForm.total_stock}
+                    onChange={(e) => setAddForm(prev => ({ ...prev, total_stock: parseInt(e.target.value) || 0 }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Cena Allegro</label>
+                  <input
+                    type="number"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    value={addForm.allegro_price}
+                    onChange={(e) => setAddForm(prev => ({ ...prev, allegro_price: parseFloat(e.target.value) || 0 }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Cena eBay</label>
+                  <input
+                    type="number"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    value={addForm.ebay_price}
+                    onChange={(e) => setAddForm(prev => ({ ...prev, ebay_price: parseFloat(e.target.value) || 0 }))}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  onClick={() => { setShowAddModal(false); resetAddForm(); }}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-700"
                 >
-                  <option value="Faktura">Faktura</option>
-                  <option value="Gotówka">Gotówka</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Typ dokumentu</label>
-                <select
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  value={addForm.document_type}
-                  onChange={(e) => setAddForm(prev => ({ ...prev, document_type: e.target.value as any }))}
+                  Anuluj
+                </button>
+                <button
+                  onClick={handleAddItem}
+                  className="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-500/30"
                 >
-                  <option value="Typ A">Typ A</option>
-                  <option value="Typ B">Typ B</option>
-                  <option value="Typ C">Typ C</option>
-                  <option value="Typ D">Typ D</option>
-                  <option value="Typ E">Typ E</option>
-                  <option value="Typ F">Typ F</option>
-                </select>
+                  Zapisz towar
+                </button>
               </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Koszt zakupu (PLN)</label>
-                <input
-                  type="number"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  value={addForm.item_cost}
-                  onChange={(e) => setAddForm(prev => ({ ...prev, item_cost: parseFloat(e.target.value) || 0 }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Stan magazynu (szt)</label>
-                <input
-                  type="number"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  value={addForm.total_stock}
-                  onChange={(e) => setAddForm(prev => ({ ...prev, total_stock: parseInt(e.target.value) || 0 }))}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Cena Allegro</label>
-                <input
-                  type="number"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  value={addForm.allegro_price}
-                  onChange={(e) => setAddForm(prev => ({ ...prev, allegro_price: parseFloat(e.target.value) || 0 }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Cena eBay</label>
-                <input
-                  type="number"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  value={addForm.ebay_price}
-                  onChange={(e) => setAddForm(prev => ({ ...prev, ebay_price: parseFloat(e.target.value) || 0 }))}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                onClick={() => { setShowAddModal(false); resetAddForm(); }}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-700"
-              >
-                Anuluj
-              </button>
-              <button
-                onClick={handleAddItem}
-                className="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-500/30"
-              >
-                Zapisz towar
-              </button>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
 
