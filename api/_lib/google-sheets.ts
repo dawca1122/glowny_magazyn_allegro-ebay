@@ -14,7 +14,7 @@ const credentials = {
     universe_domain: process.env.GOOGLE_UNIVERSE_DOMAIN
 };
 
-const DEFAULT_SHEET_ID = '1Rkl0t9-7fD4GG6t0dP7_cexo8Ctg48WPwUKfl-_dN18';
+const DEFAULT_SHEET_ID = '1VkBXhxcPi4DtaMFvhCf32xbPy6p9JrarR6w_FmHTahM';
 
 export async function getGoogleSheetsClient() {
     const auth = new google.auth.GoogleAuth({
@@ -33,10 +33,15 @@ export function parseSheetNum(val: any): number {
     return isNaN(num) || !isFinite(num) ? 0 : num;
 }
 
+export function sanitizeSheetId(id: string | undefined): string {
+    return (id || '').replace(/^\ufeff/, '').trim();
+}
+
 export async function fetchSheetData(spreadsheetId: string, range: string) {
     const sheets = await getGoogleSheetsClient();
+    const cleanId = sanitizeSheetId(spreadsheetId);
     const response = await sheets.spreadsheets.values.get({
-        spreadsheetId: spreadsheetId || DEFAULT_SHEET_ID,
+        spreadsheetId: cleanId || DEFAULT_SHEET_ID,
         range
     });
     return response.data.values || [];

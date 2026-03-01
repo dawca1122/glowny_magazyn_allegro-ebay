@@ -1,9 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getGoogleSheetsClient, fetchSheetData, parseSheetNum } from './_lib/google-sheets.js';
+import { getGoogleSheetsClient, fetchSheetData, parseSheetNum, sanitizeSheetId } from './_lib/google-sheets.js';
 
 export const runtime = 'nodejs';
 
-const SHEET_ID = process.env.SPREADSHEET_ID_INVENTORY || '1Rkl0t9-7fD4GG6t0dP7_cexo8Ctg48WPwUKfl-_dN18';
+const raw_SHEET_ID = process.env.SPREADSHEEET_ID_INVENTORY || process.env.SPREADSHEET_ID_INVENTORY || '1VkBXhxcPi4DtaMFvhCf32xbPy6p9JrarR6w_FmHTahM';
+const SHEET_ID = sanitizeSheetId(raw_SHEET_ID);
 const INVENTORY_SHEETS = ['Magazyn', 'Produkty', 'Inventory', 'Products', 'Stan'];
 
 async function findInventorySheet(sheets: any): Promise<string | null> {
