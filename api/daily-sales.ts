@@ -8,58 +8,36 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export const runtime = 'nodejs';
 
-const DZIDEK_URL = 'https://api.dzidek.de';
-const REQUEST_TIMEOUT = 15000;
+const GAS_URL = 'https://script.google.com/u/0/home/projects/1Sh_brzCdhNclr77chHZZyWfRzhMhTYKiHKrci9STvF32tNv9aqB_bg1X/exec'; // Zmieniono na /exec dla Vercel
+const REQUEST_TIMEOUT = 30000;
 
-async function fetchFromDzidek(): Promise<any | null> {
+async function fetchFromGas(): Promise<any | null> {
   try {
-    // Główny endpoint Dzidka
-    const response = await fetch(`${DZIDEK_URL}/api/app-data`, {
+    const response = await fetch(GAS_URL, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Accept': 'application/json' },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT),
     });
 
     if (!response.ok) return null;
-    
+
+    // Google Apps Script może zwrócić HTML jeśli link jest zły/brak uprawnień
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) return null;
+
     const data = await response.json();
-    console.log('[daily-sales] Dzidek response:', JSON.stringify(data).slice(0, 200));
-    
-    // Przekształć dane z Dzidka do formatu daily-sales
-    if (data.summary) {
-      const allegroProducts = Object.entries(data.summary).map(([name, info]: [string, any]) => ({
-        productName: name,
-        soldToday: info.soldQty || 0,
-        revenue: info.gross || 0
-      }));
-      
-      return {
-        date: new Date().toISOString().split('T')[0],
-        allegro: allegroProducts,
-        ebay: [], // eBay dane przyjdą od eBay workera
-        totals: {
-          allegro: { 
-            items: allegroProducts.reduce((sum, p) => sum + p.soldToday, 0),
-            revenue: allegroProducts.reduce((sum, p) => sum + p.revenue, 0),
-            currency: 'PLN'
-          },
-          ebay: { items: 0, revenue: 0, currency: 'EUR' }
-        },
-        source: 'dzidek',
-        timestamp: data.timestamp || new Date().toISOString()
-      };
-    }
-    
+    console.log('[daily-sales] GAS response received');
+
     return data;
   } catch (error) {
-    console.log('[daily-sales] Dzidek unavailable:', error);
+    console.log('[daily-sales] GAS unavailable:', error);
     return null;
   }
 }
 
 function getEmptyData() {
   const today = new Date().toISOString().split('T')[0];
-  
+
   return {
     date: today,
     allegro: [],
@@ -83,15 +61,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const dzidekData = await fetchFromDzidek();
-    
-    if (dzidekData) {
-      return res.status(200).json(dzidekData);
+    const gasData = await fetchFromGas();
+
+    if (gasData) {
+      return res.status(200).json(gasData);
     }
 
     // Brak danych - zwróć puste (nie mock!)
     return res.status(200).json(getEmptyData());
-    
+
   } catch (error: any) {
     console.error('[daily-sales] Error:', error);
     return res.status(200).json(getEmptyData());

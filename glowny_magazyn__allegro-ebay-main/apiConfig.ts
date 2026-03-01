@@ -15,13 +15,13 @@ const DZIDEK_API = getEnvVar('VITE_DZIDEK_API') || 'https://api.dzidek.de';
 
 // Local dev fallback
 const isDev = typeof window !== 'undefined' && (
-  window.location.hostname === 'localhost' || 
+  window.location.hostname === 'localhost' ||
   window.location.hostname === '127.0.0.1'
 );
 
 // Dla Vercel używamy relative paths do własnych API (które proxy do Dzidka)
 // Dla localhost używamy bezpośrednio Dzidka lub localhost:3001
-export const API_BASE = getEnvVar('VITE_API_BASE') || (isDev ? 'http://localhost:3001' : '');
+export const API_BASE = getEnvVar('VITE_API_BASE') || 'http://localhost:3001';
 
 // Dzidek endpoints - główne źródło prawdziwych danych
 export const dzidekEndpoints = {
@@ -39,9 +39,9 @@ export const apiEndpoints = {
   // Własne endpointy (fallback/cache)
   salesSummary: `${API_BASE}/api/sales-summary`,
   dailySales: `${API_BASE}/api/daily-sales`,
-  chartData: (period: string, platform: string) => 
+  chartData: (period: string, platform: string) =>
     `${API_BASE}/api/chart-data?period=${period}&platform=${platform}`,
-  monthlyChartData: (months: number) => 
+  monthlyChartData: (months: number) =>
     `${API_BASE}/api/monthly-chart-data?months=${months}`,
   platformStats: `${API_BASE}/api/platform-stats`,
   exportToSheets: `${API_BASE}/api/export-to-sheets`,
@@ -51,7 +51,7 @@ export const apiEndpoints = {
   dzidekStatus: `${API_BASE}/api/dzidek-status`,
   workerCommand: `${API_BASE}/api/worker-command`,
   messages: `${API_BASE}/api/messages`,
-  
+
   // Bezpośrednie połączenie z Dzidkiem
   dzidek: dzidekEndpoints,
 };

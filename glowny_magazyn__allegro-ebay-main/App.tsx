@@ -1,8 +1,8 @@
-
+﻿
 import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, Package, LogOut, Bell, Search, Plus, Database, CloudOff, TrendingUp, ShoppingBag, FileCheck, BarChart3, LineChart } from 'lucide-react';
 import InventoryTable from './InventoryTable';
-import { inventoryService, isConfigured } from './supabaseClient';
+import { inventoryService, isConfigured } from './magazynClient';
 import { InventoryItem, SalesSummaryMap, PeriodReport, ReportPeriodType, ChannelReport } from './types';
 import { salesService } from './salesService';
 import { reportsService } from './reportsService';
@@ -11,6 +11,12 @@ import { apiEndpoints } from './apiConfig';
 type View = 'dashboard' | 'magazyn' | 'raporty' | 'wykresy';
 type Platform = 'overview' | 'ebay' | 'allegro';
 type ReportType = 'weekly' | 'monthly' | 'quarterly';
+
+/** Bezpieczna konwersja na liczbę — chroni przed undefined/null/NaN z API */
+const safeNum = (val: any, fallback = 0): number => {
+  const n = Number(val);
+  return isFinite(n) ? n : fallback;
+};
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -104,89 +110,17 @@ const App: React.FC = () => {
 
   const fetchSales = async () => {
     try {
-      // Pobieramy dane Allegro z nowego GAS endpointu, a resztę z Dzidka
-
-      let allegroData: any = null;
-      let ebayData: any = null;
-      let dzidekData: any = null;
-
-      // 1. Spróbuj pobrać Allegro z nowego endpointu (GAS przez Vercel api/dzidek-sync)
-      try {
-        const syncResponse = await fetch(apiEndpoints.dzidekSync, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-        if (syncResponse.ok) {
-          const syncJson = await syncResponse.json();
-          if (syncJson.success && syncJson.data?.allegro) {
-            allegroData = syncJson.data.allegro;
-            console.log('[Sales] Allegro Data from GAS API:', allegroData);
-          }
-        }
-      } catch (syncError) {
-        console.warn('[Sales] GAS API unavailable, fallback not applicable for Allegro', syncError);
+      const response = await fetch(apiEndpoints.salesSummary);
+      if (response.ok) {
+        const transformedData = await response.json();
+        console.log('[Sales] Transformed unified data from local API:', transformedData);
+        setNetProfit(transformedData);
+        setSalesSummary({});
+      } else {
+        throw new Error('Local API not ok');
       }
-
-      // 2. Pobierz eBay z Dziedka
-      try {
-        const dzidekResponse = await fetch(apiEndpoints.dzidek.appData, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-        if (dzidekResponse.ok) {
-          dzidekData = await dzidekResponse.json();
-          console.log('[Sales] Data from Dzidek (for eBay):', dzidekData);
-        }
-      } catch (dzidekError) {
-        console.warn('[Sales] Dzidek unavailable for eBay fallback...', dzidekError);
-      }
-
-      // 3. Połącz dane i przekształć na format { daily, monthly } obsługiwany przez dashboard
-      const ebayRev = dzidekData?.platformData?.ebay?.revenue || 0;
-      const allegroRev = allegroData?.revenue || dzidekData?.platformData?.allegro?.revenue || 0;
-
-      const ebayNet = dzidekData?.platformData?.ebay?.netProfit || (ebayRev * 0.5); // Fallback for eBay net
-
-      // Koszty Allegro (realne z GAS, albo fallback)
-      const allegroProductCosts = allegroData ? (allegroData.costs.products || 0) : (allegroRev * 0.30);
-      const allegroFees = allegroData ? (allegroData.costs.fees || 0) : (allegroRev * 0.12);
-      const allegroTaxes = allegroData ? (allegroData.costs.taxes || 0) : (allegroRev * 0.08);
-
-      const netAllegro = allegroData
-        ? allegroData.netProfit
-        : (allegroRev - allegroProductCosts - allegroFees - allegroTaxes);
-
-      // Koszty eBay (odtworzone z szacunków)
-      const ebayProductCosts = ebayRev * 0.30;
-      const ebayFees = ebayRev * 0.12;
-      const ebayTaxes = ebayRev * 0.08;
-
-      const totalProductCosts = allegroProductCosts + ebayProductCosts;
-      const totalFees = allegroFees + ebayFees;
-      const totalTaxes = allegroTaxes + ebayTaxes;
-
-      const transformedData = {
-        daily: {
-          revenue: { ebay: ebayRev, allegro: allegroRev },
-          costs: { products: totalProductCosts, fees: totalFees, taxes: totalTaxes },
-          net: { ebay: ebayNet, allegro: netAllegro }
-        },
-        monthly: {
-          revenue: { ebay: ebayRev, allegro: allegroRev },
-          costs: { products: totalProductCosts, fees: totalFees, taxes: totalTaxes },
-          net: { ebay: ebayNet, allegro: netAllegro },
-          dailyAverage: netAllegro / 12 // Uproszczone mapowanie
-        }
-      };
-
-      console.log('[Sales] Transformed unified data:', transformedData);
-      setNetProfit(transformedData);
-      setSalesSummary({});
-
     } catch (err) {
-      console.warn('[Sales] All sources failed completely', err);
+      console.warn('[Sales] Local API source failed completely', err);
       setNetProfit({
         daily: {
           revenue: { ebay: 0, allegro: 0 },
@@ -306,35 +240,16 @@ const App: React.FC = () => {
     }
   };
 
-  // Pobierz dzienną sprzedaż z Allegro i eBay - najpierw Dzidek, potem fallback
+  // Pobierz dzienną sprzedaż z Allegro i eBay - tylko z lokalnego API
   const fetchDailySales = async () => {
     try {
       setDailySalesLoading(true);
 
-      let data = null;
-
-      // 1. Spróbuj pobrać z Dzidka
-      try {
-        const dzidekResponse = await fetch(apiEndpoints.dzidek.dailySales, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-        if (dzidekResponse.ok) {
-          data = await dzidekResponse.json();
-          console.log('[DailySales] Data from Dzidek:', data);
-        }
-      } catch (dzidekError) {
-        console.warn('[DailySales] Dzidek unavailable:', dzidekError);
+      const response = await fetch(apiEndpoints.dailySales);
+      if (!response.ok) {
+        throw new Error('Local daily sales API not ok');
       }
-
-      // 2. Fallback na własne API
-      if (!data) {
-        const response = await fetch(apiEndpoints.dailySales);
-        if (response.ok) {
-          data = await response.json();
-        }
-      }
+      const data = await response.json();
 
       if (!data || !data.allegro || !data.ebay) {
         throw new Error('No valid data from any source');
@@ -371,7 +286,7 @@ const App: React.FC = () => {
       }
 
     } catch (error) {
-      console.warn('[DailySales] All sources unavailable:', error);
+      console.warn('[DailySales] Local sources unavailable:', error);
 
       // Brak danych - pokaż pustą listę
       setDailySalesDropdown({
@@ -716,12 +631,12 @@ const App: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
                       <p className="text-sm text-emerald-700 font-semibold mb-1">Przychód dziś (eBay)</p>
-                      <p className="text-2xl font-black text-emerald-900">€{netProfit.daily.revenue.ebay.toFixed(2)}</p>
+                      <p className="text-2xl font-black text-emerald-900">€{safeNum(netProfit.daily.revenue.ebay).toFixed(2)}</p>
                       <p className="text-xs text-emerald-600 mt-1">{netProfit.daily.revenue.ebay > 0 ? 'Dane z Dzidek' : 'Sklep zamknięty'}</p>
                     </div>
                     <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
                       <p className="text-sm text-emerald-700 font-semibold mb-1">Zysk netto dziś</p>
-                      <p className="text-2xl font-black text-emerald-900">€{netProfit.daily.net.ebay.toFixed(2)}</p>
+                      <p className="text-2xl font-black text-emerald-900">€{safeNum(netProfit.daily.net.ebay).toFixed(2)}</p>
                       <p className="text-xs text-emerald-600 mt-1">Po kosztach</p>
                     </div>
                     <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
@@ -739,7 +654,7 @@ const App: React.FC = () => {
                     </div>
                     <p className="text-sm text-slate-600">
                       {netProfit.daily.revenue.ebay > 0
-                        ? `Aktywna sprzedaż - przychód €${netProfit.daily.revenue.ebay.toFixed(2)}`
+                        ? `Aktywna sprzedaż - przychód €${safeNum(netProfit.daily.revenue.ebay).toFixed(2)}`
                         : 'Sklep eBay zamknięty - brak aktywnej sprzedaży'
                       }
                     </p>
@@ -747,7 +662,7 @@ const App: React.FC = () => {
 
                   <div className="mt-4 text-sm text-slate-500">
                     <p>📊 <span className="font-semibold">Źródło danych:</span> Dzidek API</p>
-                    <p>📨 <span className="font-semibold">Miesięcznie:</span> €{netProfit.monthly.revenue.ebay.toFixed(2)}</p>
+                    <p>📨 <span className="font-semibold">Miesięcznie:</span> €{safeNum(netProfit.monthly.revenue.ebay).toFixed(2)}</p>
                   </div>
                 </div>
 
@@ -763,12 +678,12 @@ const App: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
                       <p className="text-sm text-indigo-700 font-semibold mb-1">Przychód dziś (Allegro)</p>
-                      <p className="text-2xl font-black text-indigo-900">{netProfit.daily.revenue.allegro.toFixed(2)} PLN</p>
+                      <p className="text-2xl font-black text-indigo-900">{safeNum(netProfit.daily.revenue.allegro).toFixed(2)} PLN</p>
                       <p className="text-xs text-indigo-600 mt-1">{netProfit.daily.revenue.allegro > 0 ? 'Dane z Dzidek' : 'Brak sprzedaży dziś'}</p>
                     </div>
                     <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
                       <p className="text-sm text-indigo-700 font-semibold mb-1">Zysk netto dziś</p>
-                      <p className="text-2xl font-black text-indigo-900">{netProfit.daily.net.allegro.toFixed(2)} PLN</p>
+                      <p className="text-2xl font-black text-indigo-900">{safeNum(netProfit.daily.net.allegro).toFixed(2)} PLN</p>
                       <p className="text-xs text-indigo-600 mt-1">Po kosztach</p>
                     </div>
                     <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
@@ -831,24 +746,24 @@ const App: React.FC = () => {
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <span className="text-white/80 text-sm">Przychód dzisiaj:</span>
-                        <span className="text-white font-bold">€{netProfit.daily.revenue.ebay.toFixed(2)} + {netProfit.daily.revenue.allegro.toFixed(2)} PLN</span>
+                        <span className="text-white font-bold">€{safeNum(netProfit.daily.revenue.ebay).toFixed(2)} + {safeNum(netProfit.daily.revenue.allegro).toFixed(2)} PLN</span>
                       </div>
 
                       <div className="space-y-2">
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-white/70">- Prowizje platform:</span>
-                          <span className="text-amber-300">€{(netProfit.daily.costs.fees * 0.762).toFixed(2)} + {(netProfit.daily.costs.fees * 0.238).toFixed(2)} PLN</span>
+                          <span className="text-amber-300">€{(safeNum(netProfit.daily.costs.fees) * 0.762).toFixed(2)} + {(safeNum(netProfit.daily.costs.fees) * 0.238).toFixed(2)} PLN</span>
                         </div>
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-white/70">- Shipping/VAT:</span>
-                          <span className="text-purple-300">€{(netProfit.daily.costs.taxes * 0.664).toFixed(2)} + {(netProfit.daily.costs.taxes * 0.336).toFixed(2)} PLN</span>
+                          <span className="text-purple-300">€{(safeNum(netProfit.daily.costs.taxes) * 0.664).toFixed(2)} + {(safeNum(netProfit.daily.costs.taxes) * 0.336).toFixed(2)} PLN</span>
                         </div>
                       </div>
 
                       <div className="pt-3 border-t border-white/20">
                         <div className="flex justify-between items-center">
                           <span className="text-white font-semibold">ZYSK NETTO DZISIAJ:</span>
-                          <span className="text-3xl font-black text-emerald-300">€{netProfit.daily.net.ebay.toFixed(2)} + {netProfit.daily.net.allegro.toFixed(2)} PLN</span>
+                          <span className="text-3xl font-black text-emerald-300">€{safeNum(netProfit.daily.net.ebay).toFixed(2)} + {safeNum(netProfit.daily.net.allegro).toFixed(2)} PLN</span>
                         </div>
                         <p className="text-white/70 text-xs mt-1">≈ <strong>€{(netProfit.daily.net.ebay + netProfit.daily.net.allegro / 4.5).toFixed(0)}</strong> łącznie po przeliczeniu (1 PLN ≈ 0.22€)</p>
                       </div>
@@ -866,27 +781,27 @@ const App: React.FC = () => {
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <span className="text-white/80 text-sm">Przychód miesiąc:</span>
-                        <span className="text-white font-bold">€{netProfit.monthly.revenue.ebay.toFixed(2)} + {netProfit.monthly.revenue.allegro.toFixed(2)} PLN</span>
+                        <span className="text-white font-bold">€{safeNum(netProfit.monthly.revenue.ebay).toFixed(2)} + {safeNum(netProfit.monthly.revenue.allegro).toFixed(2)} PLN</span>
                       </div>
 
                       <div className="space-y-2">
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-white/70">- Prowizje platform:</span>
-                          <span className="text-amber-300">€{(netProfit.monthly.costs.fees * 0.762).toFixed(2)} + {(netProfit.monthly.costs.fees * 0.238).toFixed(2)} PLN</span>
+                          <span className="text-amber-300">€{(safeNum(netProfit.monthly.costs.fees) * 0.762).toFixed(2)} + {(safeNum(netProfit.monthly.costs.fees) * 0.238).toFixed(2)} PLN</span>
                         </div>
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-white/70">- Shipping/VAT/podatki:</span>
-                          <span className="text-purple-300">€{(netProfit.monthly.costs.taxes * 0.664).toFixed(2)} + {(netProfit.monthly.costs.taxes * 0.336).toFixed(2)} PLN</span>
+                          <span className="text-purple-300">€{(safeNum(netProfit.monthly.costs.taxes) * 0.664).toFixed(2)} + {(safeNum(netProfit.monthly.costs.taxes) * 0.336).toFixed(2)} PLN</span>
                         </div>
                       </div>
 
                       <div className="pt-3 border-t border-white/20">
                         <div className="flex justify-between items-center">
                           <span className="text-white font-semibold">ZYSK NETTO MIESIĄC:</span>
-                          <span className="text-3xl font-black text-amber-300">€{netProfit.monthly.net.ebay.toFixed(2)} + {netProfit.monthly.net.allegro.toFixed(2)} PLN</span>
+                          <span className="text-3xl font-black text-amber-300">€{safeNum(netProfit.monthly.net.ebay).toFixed(2)} + {safeNum(netProfit.monthly.net.allegro).toFixed(2)} PLN</span>
                         </div>
                         <p className="text-white/70 text-xs mt-1">≈ <strong>€{(netProfit.monthly.net.ebay + netProfit.monthly.net.allegro / 4.5).toFixed(0)}</strong> łącznie po przeliczeniu</p>
-                        <p className="text-white/60 text-xs mt-1">Średnio <strong>€{netProfit.monthly.dailyAverage.toFixed(0)}</strong> dziennie w tym miesiącu</p>
+                        <p className="text-white/60 text-xs mt-1">Średnio <strong>€{safeNum(netProfit.monthly.dailyAverage).toFixed(0)}</strong> dziennie w tym miesiącu</p>
                       </div>
                     </div>
                   </div>
@@ -911,13 +826,13 @@ const App: React.FC = () => {
                 </div>
                 <div className="bg-white p-5 rounded-[20px] border border-emerald-200 shadow-sm">
                   <p className="text-sm font-semibold text-emerald-600 mb-2">Zysk eBay (miesiąc)</p>
-                  <p className="text-2xl font-black text-emerald-900">€{netProfit.monthly.net.ebay.toFixed(2)}</p>
+                  <p className="text-2xl font-black text-emerald-900">€{safeNum(netProfit.monthly.net.ebay).toFixed(2)}</p>
                   <p className="text-xs text-emerald-600 mt-1">Dane z Dzidek API</p>
                 </div>
                 <div className="bg-white p-5 rounded-[20px] border border-indigo-200 shadow-sm">
                   <p className="text-sm font-semibold text-indigo-600 mb-2">Zysk Allegro (miesiąc)</p>
-                  <p className="text-2xl font-black text-indigo-900">{netProfit.monthly.net.allegro.toFixed(2)} PLN</p>
-                  <p className="text-xs text-indigo-600 mt-1">Przychód: {netProfit.monthly.revenue.allegro.toFixed(2)} PLN</p>
+                  <p className="text-2xl font-black text-indigo-900">{safeNum(netProfit.monthly.net.allegro).toFixed(2)} PLN</p>
+                  <p className="text-xs text-indigo-600 mt-1">Przychód: {safeNum(netProfit.monthly.revenue.allegro).toFixed(2)} PLN</p>
                 </div>
               </div>
 
@@ -1061,7 +976,7 @@ const App: React.FC = () => {
                   <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
                     <p className="text-white/80 text-sm font-semibold mb-1">PRZYCHÓD</p>
                     <p className="text-2xl font-black text-white">{(netProfit.monthly.revenue.ebay * 4.5 + netProfit.monthly.revenue.allegro).toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN</p>
-                    <p className="text-white/60 text-xs mt-1">eBay: €{netProfit.monthly.revenue.ebay.toFixed(2)} + Allegro: {netProfit.monthly.revenue.allegro.toFixed(2)} PLN</p>
+                    <p className="text-white/60 text-xs mt-1">eBay: €{safeNum(netProfit.monthly.revenue.ebay).toFixed(2)} + Allegro: {safeNum(netProfit.monthly.revenue.allegro).toFixed(2)} PLN</p>
                   </div>
 
                   <div className="bg-white/10 backdrop-blur-sm p-4 rounded-[16px] border border-white/20">
@@ -1107,7 +1022,7 @@ const App: React.FC = () => {
                     </div>
                     <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
                       <span className="text-white/80">Dzienny zysk średni:</span>
-                      <span className="text-emerald-300 font-bold">{netProfit.monthly.dailyAverage.toFixed(0)} PLN</span>
+                      <span className="text-emerald-300 font-bold">{safeNum(netProfit.monthly.dailyAverage).toFixed(0)} PLN</span>
                     </div>
                     <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
                       <span className="text-white/80">Status:</span>

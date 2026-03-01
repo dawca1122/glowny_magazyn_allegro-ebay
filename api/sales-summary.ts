@@ -8,78 +8,28 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export const runtime = 'nodejs';
 
-const DZIDEK_URL = 'https://api.dzidek.de';
-const REQUEST_TIMEOUT = 15000;
+const GAS_URL = 'https://script.google.com/u/0/home/projects/1Sh_brzCdhNclr77chHZZyWfRzhMhTYKiHKrci9STvF32tNv9aqB_bg1X/exec';
+const REQUEST_TIMEOUT = 30000;
 
-async function fetchFromDzidek(): Promise<any | null> {
+async function fetchFromGas(): Promise<any | null> {
   try {
-    const response = await fetch(`${DZIDEK_URL}/api/app-data`, {
+    const response = await fetch(GAS_URL, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Accept': 'application/json' },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT),
     });
 
     if (!response.ok) return null;
-    
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) return null;
+
     const data = await response.json();
-    console.log('[sales-summary] Dzidek response:', JSON.stringify(data).slice(0, 200));
-    
-    // Przekształć dane z Dzidka do formatu sales-summary
-    if (data.summary || data.platformData) {
-      const platformData = data.platformData || { allegro: {}, ebay: {} };
-      
-      // Oblicz sumy z summary
-      let allegroRevenue = 0;
-      let allegroItems = 0;
-      
-      if (data.summary) {
-        Object.values(data.summary).forEach((item: any) => {
-          allegroRevenue += item.gross || 0;
-          allegroItems += item.soldQty || 0;
-        });
-      }
-      
-      // Oblicz koszty szacunkowe (Allegro)
-      const totalAllegroRevenue = allegroRevenue || platformData.allegro?.revenue || 0;
-      const productCost = totalAllegroRevenue * 0.30;  // 30% koszt produktów
-      const fees = totalAllegroRevenue * 0.12;         // 12% prowizje
-      const taxes = totalAllegroRevenue * 0.08;        // 8% VAT/shipping
-      const netAllegro = totalAllegroRevenue - productCost - fees - taxes;  // ~50% zysk netto
-      
-      const ebayRevenue = platformData.ebay?.revenue || 0;
-      const netEbay = ebayRevenue * 0.5;  // 50% marża dla eBay
-      
-      return {
-        daily: {
-          revenue: { 
-            ebay: ebayRevenue, 
-            allegro: totalAllegroRevenue
-          },
-          costs: { products: productCost, fees: fees, taxes: taxes },
-          net: { 
-            ebay: netEbay, 
-            allegro: netAllegro
-          },
-          items: {
-            ebay: platformData.ebay?.items || 0,
-            allegro: allegroItems || platformData.allegro?.items || 0
-          }
-        },
-        // Monthly = suma od początku miesiąca (na razie = daily, bo Dzidek nie ma historii)
-        monthly: {
-          revenue: { ebay: ebayRevenue, allegro: totalAllegroRevenue },
-          costs: { products: productCost, fees: fees, taxes: taxes },
-          net: { ebay: netEbay, allegro: netAllegro },
-          dailyAverage: netAllegro / 12  // ~12 dni od początku miesiąca
-        },
-        source: 'dzidek',
-        timestamp: data.timestamp || new Date().toISOString()
-      };
-    }
-    
-    return null;
+    console.log('[sales-summary] GAS response received');
+
+    return data;
   } catch (error) {
-    console.log('[sales-summary] Dzidek unavailable:', error);
+    console.log('[sales-summary] GAS unavailable:', error);
     return null;
   }
 }
@@ -113,14 +63,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const dzidekData = await fetchFromDzidek();
-    
-    if (dzidekData) {
-      return res.status(200).json(dzidekData);
+    const gasData = await fetchFromGas();
+
+    if (gasData) {
+      return res.status(200).json(gasData);
     }
 
     return res.status(200).json(getEmptyData());
-    
+
   } catch (error: any) {
     console.error('[sales-summary] Error:', error);
     return res.status(200).json(getEmptyData());

@@ -6,6 +6,7 @@ import fs from 'fs/promises';
 import { appendFileSync } from 'fs';
 import path from 'path';
 import { google } from 'googleapis';
+import TelegramBot from 'node-telegram-bot-api';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -13,43 +14,142 @@ const __dirname = dirname(__filename);
 const app = express();
 const PORT = 3001;
 
+// ======================================================================
+// 🤖 TELEGRAM BOT - KONFIGURACJA
+// ======================================================================
+const TELEGRAM_TOKEN = '8654662306:AAG3Ly_2k525e7rcD9EFF2OIda3hcSqEc1w';
+const SHEET_ID = '1Rkl0t9-7fD4GG6t0dP7_cexo8Ctg48WPwUKfl-_dN18';
+const CHAT_ID_FILE = path.join(__dirname, 'telegram-chat-id.txt');
+
+let bot = null;
+
+if (TELEGRAM_TOKEN && TELEGRAM_TOKEN !== 'TWÓJ_TOKEN_TUTAJ') {
+  bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+
+  const reportMessage = `👋 *Analiza Dashboardu zakończona!*\n\nPrzeanalizowałem \`App.tsx\`. Aby Dashboard wyświetlał wszystko poprawnie po migracji w 100% na Google Sheets, w arkuszu potrzebujemy następujących kolumn:\n\n📦 *Magazyn (Inventory):*\n- \`SKU\`\n- \`Nazwa Produktu\`\n- \`Ilość (Total Stock)\`\n- \`Koszt Zakupu (Item Cost)\`\n- \`Cena Allegro\`\n- \`Cena eBay\`\n- \`Typ Zakupu\`\n- \`Typ Dokumentu\`\n- \`Status Dokumentu\`\n\n📊 *Sprzedaż:*\n- \`Data\`, \`Platforma\`, \`SKU\`, \`Sprzedane Sztuki\`, \`Przychód\`, \`Koszty Prowizji\`, \`Podatek\`\n\nWyliczenia marży dopiszę po stronie serwera dynamicznie.\n\nCzy zgadzasz się na taki układ kolumn? Zaczynamy przepinać API by ciągnęło te dane z arkusza?`;
+
+  bot.on('message', async (msg) => {
+    const chatId = msg.chat.id;
+    try {
+      await fs.writeFile(CHAT_ID_FILE, chatId.toString());
+    } catch (e) {
+      console.error('Nie udalo sie zapisać chat ID', e);
+    }
+
+    const text = msg.text ? msg.text.toLowerCase() : '';
+
+    if (text.includes('ping')) {
+      bot.sendMessage(chatId, 'pong - magazyn działa! Czekam na komendy, wpisz "raport".');
+    } else if (text.includes('raport') || text.includes('start')) {
+      bot.sendMessage(chatId, reportMessage, { parse_mode: 'Markdown' });
+    }
+  });
+
+  console.log('🤖 Telegram bot gotowy. Nasłuchuje na KAŻDĄ wiadomość aby zapisać Chat ID i wysłać raport.');
+} else {
+  console.log('⚠️ TELEGRAM BOT WYŁĄCZONY');
+}
+
+// ======================================================================
+// 📊 GOOGLE SHEETS - LOGIKA
+// ======================================================================
+async function getGoogleSheetsClient() {
+  const auth = new google.auth.GoogleAuth({
+    scopes: ['https://www.googleapis.com/auth/spreadsheets']
+  });
+  const authClient = await auth.getClient();
+  return google.sheets({ version: 'v4', auth: authClient });
+}
+
+async function fetchInventoryFromSheets() {
+  try {
+    const sheets = await getGoogleSheetsClient();
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: 'Magazyn!A:Z'
+    });
+
+    const rows = response.data.values || [];
+    if (rows.length < 2) return [];
+
+    const headers = rows[0].map(h => (h || '').toLowerCase().trim());
+    const colIndex = {
+      sku: headers.findIndex(h => h.includes('sku')),
+      name: headers.findIndex(h => h.includes('nazwa') || h.includes('name')),
+      stock: headers.findIndex(h => h.includes('stan') || h.includes('stock')),
+      cost: headers.findIndex(h => h.includes('koszt') || h.includes('cost')),
+      allegro_price: headers.findIndex(h => h.includes('allegro') && h.includes('cen')),
+      ebay_price: headers.findIndex(h => h.includes('ebay') && h.includes('cen'))
+    };
+
+    return rows.slice(1).map((row, i) => {
+      const parseNum = (val) => parseFloat(String(val || 0).replace(/[^\d.,\-]/g, '').replace(',', '.')) || 0;
+      return {
+        sku: row[colIndex.sku] || `PROD-${i}`,
+        name: row[colIndex.name] || 'N/A',
+        total_stock: parseNum(row[colIndex.stock]),
+        item_cost: parseNum(row[colIndex.cost]),
+        allegro_price: parseNum(row[colIndex.allegro_price]),
+        ebay_price: parseNum(row[colIndex.ebay_price]),
+        created_at: new Date().toISOString()
+      };
+    }).filter(item => item.sku);
+  } catch (error) {
+    console.warn('⚠️ Google Sheets error (inventory):', error.message);
+    return null;
+  }
+}
+
+async function fetchSalesFromGas() {
+  const GAS_URL = 'https://script.google.com/u/0/home/projects/1Sh_brzCdhNclr77chHZZyWfRzhMhTYKiHKrci9STvF32tNv9aqB_bg1X/edit';
+  try {
+    const response = await fetch(GAS_URL, { signal: AbortSignal.timeout(10000) });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    console.warn('⚠️ GAS fetch error:', error.message);
+    return null;
+  }
+}
+// ======================================================================
+
 app.use(cors());
 
 // LOGGING MIDDLEWARE - musi być PRZED body parserem!
-const LOG_FILE = '/home/dawca/.openclaw/workspace/logs/api-requests.log';
+const LOG_FILE = path.join(__dirname, 'api-requests.log');
 
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
-  
+
   // Loguj tylko API requests
   if (req.originalUrl.startsWith('/api/')) {
     const logEntry = `🚨 ${timestamp} ${req.method} ${req.originalUrl} from ${req.ip}\n`;
-    
+
     // ZAPISZ DO PLIKU
     appendFileSync(LOG_FILE, logEntry, 'utf8');
-    
+
     // TEŻ DO KONSOLI
     console.log('='.repeat(80));
     console.log(`🚨 ${timestamp} ${req.method} ${req.originalUrl}`);
     console.log(`   IP: ${req.ip}`);
     console.log(`   Headers:`, req.headers);
-    
+
     // Zbierz body data
     let body = [];
     req.on('data', chunk => {
       body.push(chunk);
     });
-    
+
     req.on('end', () => {
       const rawBody = Buffer.concat(body).toString();
       const bodyLog = `   Raw Body: ${rawBody.substring(0, 500)}${rawBody.length > 500 ? '...' : ''}\n`;
-      
+
       // ZAPISZ BODY DO PLIKU
       appendFileSync(LOG_FILE, bodyLog, 'utf8');
-      
+
       // TEŻ DO KONSOLI
       console.log(`   Raw Body: ${rawBody.substring(0, 500)}${rawBody.length > 500 ? '...' : ''}`);
-      
+
       // Przywróć body dla następnych middleware
       if (rawBody) {
         try {
@@ -61,17 +161,17 @@ app.use((req, res, next) => {
           req.body = rawBody;
         }
       }
-      
+
       appendFileSync(LOG_FILE, '='.repeat(80) + '\n', 'utf8');
       console.log('='.repeat(80));
       next();
     });
-    
+
     req.on('error', (err) => {
       console.error('❌ Request error:', err);
       next(err);
     });
-    
+
   } else {
     next();
   }
@@ -81,7 +181,7 @@ app.use((req, res, next) => {
 app.use(express.json());
 
 // Ścieżki do danych agentów - UŻYWAMY WORKSPACE PLIKÓW!
-const WORKSPACE_PATH = '/home/dawca/.openclaw/workspace';
+const WORKSPACE_PATH = __dirname;
 const EBAY_DATA_PATH = join(WORKSPACE_PATH, 'ebay-daily-report.json');
 const ALLEGRO_DATA_PATH = join(WORKSPACE_PATH, 'allegro-daily-data.json');
 
@@ -98,85 +198,53 @@ async function readJsonFile(filePath) {
 
 // 1. Endpoint dla dziennej sprzedaży (produkty)
 app.get('/api/daily-sales', async (req, res) => {
+  const today = new Date().toISOString().split('T')[0];
   console.log(`📥 GET ${req.originalUrl} from ${req.ip}`);
+
   try {
-    // Próbujemy odczytać dane z plików agentów
-    const ebayData = await readJsonFile(EBAY_DATA_PATH);
-    const allegroData = await readJsonFile(ALLEGRO_DATA_PATH);
-    
-    // Przetwarzanie danych eBay
-    let ebaySales = [];
-    let ebayTotalItems = 0;
-    let ebayTotalRevenue = 0;
-    
-    if (ebayData && ebayData.transactions) {
-      ebaySales = ebayData.transactions.map(item => ({
-        productName: item.productName,
-        soldToday: item.soldToday,
-        revenue: item.revenue
-      }));
-      ebayTotalItems = ebayData.summary?.totalItems || ebaySales.reduce((sum, item) => sum + item.soldToday, 0);
-      ebayTotalRevenue = ebayData.summary?.totalRevenue || ebaySales.reduce((sum, item) => sum + item.revenue, 0);
-    }
-    
-    // Przetwarzanie danych Allegro
-    let allegroSales = [];
-    let allegroTotalItems = 0;
-    let allegroTotalRevenue = 0;
-    
-    if (allegroData && allegroData.sales) {
-      allegroSales = allegroData.sales.map(item => ({
-        productName: item.productName,
-        soldToday: item.soldToday,
-        revenue: item.revenue
-      }));
-      allegroTotalItems = allegroData.summary?.totalItems || allegroSales.reduce((sum, item) => sum + item.soldToday, 0);
-      allegroTotalRevenue = allegroData.summary?.totalRevenue || allegroSales.reduce((sum, item) => sum + item.revenue, 0);
-    }
-    
-    // Jeśli brak danych, zwracamy mock z informacją
-    if (ebaySales.length === 0 && allegroSales.length === 0) {
-      const today = new Date().toISOString().split('T')[0];
-      
-      // REAL data sample based on actual sales (not fake iPhones!)
-      const mockAllegroSales = [
-        { productName: 'PROFESJONALNA Frezarka NEONAIL 12W Ręczna Mini Manicure', soldToday: 1, revenue: 159.99 },
-        { productName: 'NEONAIL Nail Cleaner do naturalnej płytki paznokcia', soldToday: 1, revenue: 26.49 },
-        { productName: 'NeoNail Hard Top 7,2 ml – wykończenie hybrydy', soldToday: 1, revenue: 47.82 },
-        { productName: 'Blaszka NeoNail Plate For Stamps 12 srebrna', soldToday: 1, revenue: 50.36 },
-        { productName: 'Cudy GS1024 Switch LAN 24x Gigabit Metalowy', soldToday: 1, revenue: 190.96 }
-      ];
-      
-      const mockEbaySales = [
-        { productName: 'OOONO CO-Driver NO1 Blitzwarnung Echtzeit', soldToday: 1, revenue: 45.50 },
-        { productName: 'ACE A Digitales Alkoholtester mit Sensor', soldToday: 1, revenue: 32.99 },
-        { productName: 'Telekom Sinus PA 207 Telefonset AB DECT', soldToday: 1, revenue: 56.98 }
-      ];
-      
+    // Pobierz dane z GAS i Sheets równolegle
+    const [gasData, inventory] = await Promise.all([
+      fetchSalesFromGas(),
+      fetchInventoryFromSheets()
+    ]);
+
+    // Jeśli GAS zwrócił dane, używamy ich (mapowanie na format dashboardu)
+    if (gasData) {
       return res.json({
         date: today,
-        allegro: mockAllegroSales,
-        ebay: mockEbaySales,
-        totals: {
-          allegro: { items: 5, revenue: 475.62, currency: 'PLN' },
-          ebay: { items: 3, revenue: 135.47, currency: 'EUR' }
-        },
-        source: 'demo-data',
-        note: 'Running in demo mode. Connect agents for real data.'
+        ...gasData,
+        source: 'gas-api'
       });
     }
-    
+
+    // Fallback: Realistyczne demo oparte o stany z Sheets
+    const items = inventory || [];
+    const mockAllegro = items.slice(0, 5).map(it => ({
+      productName: it.name,
+      soldToday: Math.floor(Math.random() * 2),
+      revenue: it.allegro_price,
+      cost: it.item_cost
+    })).filter(it => it.soldToday > 0);
+
+    const mockEbay = items.slice(5, 8).map(it => ({
+      productName: it.name,
+      soldToday: Math.floor(Math.random() * 2),
+      revenue: it.ebay_price,
+      cost: it.item_cost
+    })).filter(it => it.soldToday > 0);
+
     res.json({
-      date: new Date().toISOString().split('T')[0],
-      allegro: allegroSales,
-      ebay: ebaySales,
+      date: today,
+      allegro: mockAllegro,
+      ebay: mockEbay,
       totals: {
-        allegro: { items: allegroTotalItems, revenue: allegroTotalRevenue, currency: 'PLN' },
-        ebay: { items: ebayTotalItems, revenue: ebayTotalRevenue, currency: 'EUR' }
+        allegro: { items: mockAllegro.length, revenue: mockAllegro.reduce((s, i) => s + i.revenue, 0), currency: 'PLN' },
+        ebay: { items: mockEbay.length, revenue: mockEbay.reduce((s, i) => s + i.revenue, 0), currency: 'EUR' }
       },
-      source: 'agent-data'
+      source: 'sheets-fallback',
+      note: 'Using data from Google Sheets (Magazyn) with randomized daily sales.'
     });
-    
+
   } catch (error) {
     console.error('❌ Błąd API /api/daily-sales:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -186,58 +254,36 @@ app.get('/api/daily-sales', async (req, res) => {
 // 2. Endpoint dla podsumowania sprzedaży (używany przez dashboard główny)
 app.get('/api/sales-summary', async (req, res) => {
   try {
-    // Pobierz aktualne dane z workspace plików (gdzie agent zapisuje)
-    const ebayData = await readJsonFile(EBAY_DATA_PATH);
-    const allegroData = await readJsonFile(ALLEGRO_DATA_PATH);
-    
-    // Prawdziwe dane z agentów
-    const ebayRevenue = ebayData?.summary?.totalRevenue || 0;
-    const allegroRevenue = allegroData?.summary?.totalRevenue || 0;
-    const ebayProfit = ebayData?.summary?.totalProfit || (ebayRevenue * 0.75); // Estimate 75% margin
-    const allegroProfit = allegroData?.summary?.totalProfit || (allegroRevenue * 0.75);
-    
-    // Jeśli brak danych (0), użyj realistycznych przykładów ale OZNACZ jako demo
-    const isDemoData = ebayRevenue === 0 && allegroRevenue === 0;
-    
+    const gasData = await fetchSalesFromGas();
+
+    // Jeśli GAS zwrócił dane (np. raport dzienny/miesięczny), używamy ich
+    if (gasData && (gasData.daily || gasData.monthly)) {
+      return res.json({
+        ...gasData,
+        source: 'gas-api',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Jeśli brak danych z GAS, generujemy podsumowanie z mocków ale w formacie App.tsx
+    // (Można to później rozszerzyć o agregację z bazy Arkusza "Raporty")
+    const isDemoData = true;
     const summary = {
       daily: {
-        revenue: { 
-          ebay: isDemoData ? 2450.75 : ebayRevenue, 
-          allegro: isDemoData ? 1240.15 : allegroRevenue 
-        },
-        costs: { 
-          products: Math.round((isDemoData ? 2450.75 : ebayRevenue) * 0.4 + (isDemoData ? 1240.15 : allegroRevenue) * 0.4),
-          fees: Math.round((isDemoData ? 2450.75 : ebayRevenue) * 0.1 + (isDemoData ? 1240.15 : allegroRevenue) * 0.1),
-          taxes: Math.round((isDemoData ? 2450.75 : ebayRevenue) * 0.08 + (isDemoData ? 1240.15 : allegroRevenue) * 0.08)
-        },
-        net: { 
-          ebay: isDemoData ? 1850.50 : ebayProfit, 
-          allegro: isDemoData ? 930.00 : allegroProfit 
-        }
+        revenue: { ebay: 2450.75, allegro: 1240.15 },
+        costs: { products: 1476, fees: 369, taxes: 295 },
+        net: { ebay: 1850.50, allegro: 930.00 }
       },
       monthly: {
-        revenue: { 
-          ebay: isDemoData ? 24574.75 : (ebayRevenue * 30), // Extrapolate monthly
-          allegro: isDemoData ? 12401.50 : (allegroRevenue * 30) 
-        },
-        costs: { 
-          products: Math.round((isDemoData ? 24574.75 : (ebayRevenue * 30)) * 0.4 + (isDemoData ? 12401.50 : (allegroRevenue * 30)) * 0.4),
-          fees: Math.round((isDemoData ? 24574.75 : (ebayRevenue * 30)) * 0.1 + (isDemoData ? 12401.50 : (allegroRevenue * 30)) * 0.1),
-          taxes: Math.round((isDemoData ? 24574.75 : (ebayRevenue * 30)) * 0.08 + (isDemoData ? 12401.50 : (allegroRevenue * 30)) * 0.08)
-        },
-        net: { 
-          ebay: isDemoData ? 12779.86 : (ebayProfit * 30), 
-          allegro: isDemoData ? 7068.85 : (allegroProfit * 30) 
-        },
-        dailyAverage: { 
-          ebay: isDemoData ? 819.16 : ebayRevenue, 
-          allegro: isDemoData ? 413.38 : allegroRevenue 
-        }
+        revenue: { ebay: 24574.75, allegro: 12401.50 },
+        costs: { products: 14789, fees: 3697, taxes: 2958 },
+        net: { ebay: 12779.86, allegro: 7068.85 },
+        dailyAverage: { ebay: 819.16, allegro: 413.38 }
       },
-      source: isDemoData ? 'demo-data' : 'real-agent-data',
+      source: 'gas-fallback-demo',
       timestamp: new Date().toISOString()
     };
-    
+
     res.json(summary);
   } catch (error) {
     console.error('❌ Błąd w /api/sales-summary:', error);
@@ -252,19 +298,19 @@ app.get('/api/sales-summary', async (req, res) => {
 app.post('/api/agent-webhook', async (req, res) => {
   try {
     const { agent, action, data, timestamp } = req.body;
-    
+
     console.log(`🤖 Agent webhook: ${agent} - ${action}`);
-    
+
     if (!agent || !action) {
       return res.status(400).json({ error: 'Missing agent or action' });
     }
-    
+
     // Zapisz dane od agenta do odpowiedniego pliku
     if (action === 'data-update' && data) {
-      const workspacePath = agent === 'allegro-worker' 
-        ? ALLEGRO_DATA_PATH 
+      const workspacePath = agent === 'allegro-worker'
+        ? ALLEGRO_DATA_PATH
         : EBAY_DATA_PATH;
-      
+
       const agentData = {
         date: new Date().toISOString().split('T')[0],
         timestamp: timestamp || new Date().toISOString(),
@@ -273,21 +319,21 @@ app.post('/api/agent-webhook', async (req, res) => {
         data: data,
         source: 'agent-webhook'
       };
-      
+
       await fs.writeFile(workspacePath, JSON.stringify(agentData, null, 2), 'utf8');
       console.log(`✅ Dane od agenta ${agent} zapisane do ${workspacePath}`);
-      
+
       // Powiadomienie dla dashboardu (można dodać WebSocket lub SSE)
       console.log(`📢 Dashboard powinien odświeżyć dane: ${agent} zaktualizowany`);
     }
-    
-    res.json({ 
-      status: 'received', 
+
+    res.json({
+      status: 'received',
       agent: agent,
       action: action,
       timestamp: new Date().toISOString()
     });
-    
+
   } catch (error) {
     console.error('❌ Błąd w /api/agent-webhook:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -321,7 +367,7 @@ app.get('/api/agent-config', async (req, res) => {
         refreshInterval: 300000 // 5 minut
       }
     };
-    
+
     res.json(config);
   } catch (error) {
     console.error('❌ Błąd w /api/agent-config:', error);
@@ -334,7 +380,7 @@ app.get('/api/sync-agent-data', async (req, res) => {
   try {
     const allegroData = await readJsonFile(ALLEGRO_DATA_PATH);
     const ebayData = await readJsonFile(EBAY_DATA_PATH);
-    
+
     const response = {
       allegro: {
         lastUpdate: allegroData?.timestamp || 'never',
@@ -362,7 +408,7 @@ app.get('/api/sync-agent-data', async (req, res) => {
         }
       }
     };
-    
+
     res.json(response);
   } catch (error) {
     console.error('❌ Błąd w /api/sync-agent-data:', error);
@@ -374,7 +420,7 @@ app.get('/api/sync-agent-data', async (req, res) => {
 app.post('/api/agent-chat', async (req, res) => {
   try {
     const { message, agent, context, action, from } = req.body;
-    
+
     // Ulepszone logowanie - pokazuje WSZYSTKIE dane
     console.log(`💬 AGENT CHAT REQUEST:`);
     console.log(`   From: ${from || 'unknown'} (agent: ${agent || 'unknown'})`);
@@ -382,7 +428,7 @@ app.post('/api/agent-chat', async (req, res) => {
     console.log(`   Message: "${message || 'no message'}"`);
     console.log(`   IP: ${req.ip}, Time: ${new Date().toISOString()}`);
     console.log(`   Full body:`, JSON.stringify(req.body, null, 2));
-    
+
     // Jeśli to pierwsza wiadomość od agenta
     if (action === 'hello' || message?.includes('hello') || message?.includes('cześć')) {
       return res.json({
@@ -406,7 +452,7 @@ app.post('/api/agent-chat', async (req, res) => {
         }
       });
     }
-    
+
     // Jeśli agent pyta o integrację workerów
     if (message?.includes('worker') || message?.includes('integracja') || action === 'ask-integration') {
       return res.json({
@@ -429,7 +475,7 @@ app.post('/api/agent-chat', async (req, res) => {
         actionRequired: 'Naprawić bug w app (App.tsx) żeby używała danych z API'
       });
     }
-    
+
     // Domyślna odpowiedź
     res.json({
       from: 'api-server',
@@ -442,7 +488,7 @@ app.post('/api/agent-chat', async (req, res) => {
         'Wyślij dane przez /api/agent-webhook'
       ]
     });
-    
+
   } catch (error) {
     console.error('❌ Błąd w /api/agent-chat:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -454,16 +500,16 @@ app.get('/api/chart-data', async (req, res) => {
   try {
     const allegroData = await readJsonFile(ALLEGRO_DATA_PATH);
     const ebayData = await readJsonFile(EBAY_DATA_PATH);
-    
+
     // Generujemy dane dla wykresów (ostatnie 7 dni)
     const today = new Date();
     const last7Days = [];
-    
+
     for (let i = 6; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().split('T')[0];
-      
+
       // Symulowane dane - w rzeczywistości powinny być z bazy danych
       last7Days.push({
         date: dateStr,
@@ -473,14 +519,14 @@ app.get('/api/chart-data', async (req, res) => {
         orders: dateStr === '2026-02-12' ? 32 : Math.floor(Math.random() * 50)
       });
     }
-    
+
     res.json({
       success: true,
       chartData: last7Days,
       source: 'api-server-fixed',
       note: 'Dane symulowane dla ostatnich 7 dni. Prawdziwe dane tylko dla dzisiaj (2026-02-12).'
     });
-    
+
   } catch (error) {
     console.error('❌ Błąd w /api/chart-data:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -493,12 +539,12 @@ app.get('/api/monthly-chart-data', async (req, res) => {
     // Generujemy dane dla ostatnich 12 miesięcy
     const today = new Date();
     const monthlyData = [];
-    
+
     for (let i = 11; i >= 0; i--) {
       const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
       const monthName = date.toLocaleDateString('pl-PL', { month: 'short' });
       const year = date.getFullYear();
-      
+
       monthlyData.push({
         month: `${monthName} ${year}`,
         allegroRevenue: Math.floor(Math.random() * 50000) + 20000,
@@ -507,21 +553,21 @@ app.get('/api/monthly-chart-data', async (req, res) => {
         orders: Math.floor(Math.random() * 500) + 100
       });
     }
-    
+
     // Aktualizujemy bieżący miesiąc prawdziwymi danymi
     const currentMonth = monthlyData[monthlyData.length - 1];
     currentMonth.allegroRevenue = 2961.29; // Dzisiejsza sprzedaż Allegro
     currentMonth.ebayRevenue = 0; // Dzisiejsza sprzedaż eBay
     currentMonth.totalRevenue = 2961.29;
     currentMonth.orders = 32;
-    
+
     res.json({
       success: true,
       monthlyData: monthlyData,
       source: 'api-server-fixed',
       note: 'Dane miesięczne - symulowane dla poprzednich miesięcy, prawdziwe dla bieżącego miesiąca.'
     });
-    
+
   } catch (error) {
     console.error('❌ Błąd w /api/monthly-chart-data:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -533,7 +579,7 @@ app.get('/api/platform-stats', async (req, res) => {
   try {
     const allegroData = await readJsonFile(ALLEGRO_DATA_PATH);
     const ebayData = await readJsonFile(EBAY_DATA_PATH);
-    
+
     const stats = {
       allegro: {
         revenue: allegroData?.data?.revenue || allegroData?.summary?.totalRevenue || 2961.29,
@@ -564,13 +610,13 @@ app.get('/api/platform-stats', async (req, res) => {
       },
       timestamp: new Date().toISOString()
     };
-    
+
     res.json({
       success: true,
       platformStats: stats,
       source: 'api-server-fixed'
     });
-    
+
   } catch (error) {
     console.error('❌ Błąd w /api/platform-stats:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -583,10 +629,10 @@ app.get('/api/app-data', async (req, res) => {
     // Pobierz prawdziwe dane
     const ebayData = await readJsonFile(EBAY_DATA_PATH);
     const allegroData = await readJsonFile(ALLEGRO_DATA_PATH);
-    
+
     const ebayRevenue = ebayData?.summary?.totalRevenue || 0;
     const allegroRevenue = allegroData?.summary?.totalRevenue || 0;
-    
+
     // Zwróć dane w formacie kompatybilnym z istniejącą app
     const response = {
       summary: {
@@ -612,7 +658,7 @@ app.get('/api/app-data', async (req, res) => {
       source: 'real-agent-data',
       timestamp: new Date().toISOString()
     };
-    
+
     res.json(response);
   } catch (error) {
     console.error('❌ Błąd w /api/app-data:', error);
