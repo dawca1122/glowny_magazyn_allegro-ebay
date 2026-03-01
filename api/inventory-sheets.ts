@@ -40,25 +40,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (rows.length < 2) return res.status(200).json({ success: true, items: [], count: 0 });
 
-    const headers = rows[0].map((h: string) => h?.toLowerCase().trim() || '');
+    const headers = rows[0].map((h: string) => h?.toLowerCase()?.trim() || '');
     const colIndex = {
-      sku: headers.findIndex((h: string) => h.includes('sku')),
-      name: headers.findIndex((h: string) => h.includes('nazwa') || h.includes('name')),
-      stock: headers.findIndex((h: string) => h.includes('stan') || h.includes('stock')),
-      price: headers.findIndex((h: string) => h.includes('cena') || h.includes('price')),
-      allegro_price: headers.findIndex((h: string) => h.includes('allegro') && h.includes('cen')),
-      ebay_price: headers.findIndex((h: string) => h.includes('ebay') && h.includes('cen')),
-      cost: headers.findIndex((h: string) => h.includes('koszt') || h.includes('cost'))
+      sku: headers.findIndex((h: string) => h === 'sku'),
+      name: headers.findIndex((h: string) => h === 'name' || h === 'nazwa'),
+      ean: headers.findIndex((h: string) => h === 'ean'),
+      total_stock: headers.findIndex((h: string) => h.includes('total_stock')),
+      item_cost: headers.findIndex((h: string) => h.includes('cost')),
+      ebay_sku: headers.findIndex((h: string) => h === 'ebay_sku'),
+      ebay_title: headers.findIndex((h: string) => h === 'ebay_title'),
+      ebay_stock: headers.findIndex((h: string) => h === 'ebay_stock'),
+      ebay_price: headers.findIndex((h: string) => h === 'ebay_price'),
+      allegro_sku: headers.findIndex((h: string) => h === 'allegro_sku'),
+      allegro_title: headers.findIndex((h: string) => h === 'allegro_title'),
+      allegro_stock: headers.findIndex((h: string) => h === 'allegro_stock'),
+      allegro_price: headers.findIndex((h: string) => h === 'allegro_price'),
+      image_url: headers.findIndex((h: string) => h === 'image_url'),
+      allegro_listing_id: headers.findIndex((h: string) => h === 'allegro_listing_id'),
+      sync_status: headers.findIndex((h: string) => h === 'sync_status')
     };
 
     const items = rows.slice(1).map((row: any, i: number) => ({
       sku: row[colIndex.sku] || `PROD-${i}`,
-      name: row[colIndex.name] || row[colIndex.sku] || 'Unnamed Product',
-      total_stock: parseSheetNum(row[colIndex.stock]),
-      allegro_price: parseSheetNum(row[colIndex.allegro_price] || row[colIndex.price]),
-      ebay_price: parseSheetNum(row[colIndex.ebay_price] || row[colIndex.price]),
-      item_cost: parseSheetNum(row[colIndex.cost]),
-      created_at: new Date().toISOString()
+      name: row[colIndex.name] || 'Bez nazwy',
+      ean: row[colIndex.ean] || '',
+      item_cost: parseSheetNum(row[colIndex.item_cost]),
+      total_stock: parseSheetNum(row[colIndex.total_stock]),
+      ebay_sku: row[colIndex.ebay_sku] || '',
+      ebay_title: row[colIndex.ebay_title] || '',
+      ebay_stock: parseSheetNum(row[colIndex.ebay_stock]),
+      ebay_price: parseSheetNum(row[colIndex.ebay_price]),
+      allegro_sku: row[colIndex.allegro_sku] || '',
+      allegro_title: row[colIndex.allegro_title] || '',
+      allegro_stock: parseSheetNum(row[colIndex.allegro_stock]),
+      allegro_price: parseSheetNum(row[colIndex.allegro_price]),
+      image_url: row[colIndex.image_url] || '',
+      allegro_listing_id: row[colIndex.allegro_listing_id] || '',
+      sync_status: row[colIndex.sync_status] || 'not_synced'
     })).filter((it: any) => it.sku);
 
     return res.status(200).json({

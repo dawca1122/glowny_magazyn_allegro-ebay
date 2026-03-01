@@ -10,15 +10,19 @@ interface Props {
   sales?: SalesSummaryMap;
 }
 
-const formatMargin = (price: number, cost: number) => {
-  if (!price || price === 0) return '-%';
-  const profit = price - cost;
-  const margin = (profit / price) * 100;
+const formatMargin = (price: any, cost: any) => {
+  const p = Number(price || 0);
+  const c = Number(cost || 0);
+  if (!p || p === 0) return '-%';
+  const profit = p - c;
+  const margin = (profit / p) * 100;
   return `${margin.toFixed(1)}%`;
 };
 
-const formatProfit = (price: number, cost: number) => {
-  const profit = price - cost;
+const formatProfit = (price: any, cost: any) => {
+  const p = Number(price || 0);
+  const c = Number(cost || 0);
+  const profit = p - c;
   return new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(profit);
 };
 
@@ -26,48 +30,55 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {
   const [savingSku, setSavingSku] = useState<string | null>(null);
   const [allegroSkuInputs, setAllegroSkuInputs] = useState<Record<string, string>>({});
 
-  const totalWarehouseStock = items.reduce((sum, item) => sum + (item.total_stock || 0), 0);
-  const totalAllegroStock = items.reduce((sum, item) => sum + (item.allegro_stock || 0), 0);
-  const totalEbayStock = items.reduce((sum, item) => sum + (item.ebay_stock || 0), 0);
+  const totalWarehouseStock = items.reduce((sum, item) => sum + (Number(item.total_stock) || 0), 0);
+  const totalAllegroStock = items.reduce((sum, item) => sum + (Number(item.allegro_stock) || 0), 0);
+  const totalEbayStock = items.reduce((sum, item) => sum + (Number(item.ebay_stock) || 0), 0);
 
-  const handleAllegroSkuChange = (ean: string, value: string) => {
+  const handleAllegroSkuChange = (sku: string, value: string) => {
     setAllegroSkuInputs(prev => ({
       ...prev,
-      [ean]: value
+      [sku]: value
     }));
   };
 
   const handleSaveAndAddToAllegro = async (item: InventoryItem) => {
-    const allegroSku = allegroSkuInputs[item.ean || item.sku] || item.allegro_sku || '';
+    const newSku = (allegroSkuInputs[item.sku] ?? item.allegro_sku ?? '').trim();
 
-    if (!allegroSku.trim()) {
+    if (!newSku) {
       onNotify('Wprowadź SKU Allegro przed zapisaniem.', 'error');
       return;
     }
 
     setSavingSku(item.sku);
     try {
-      // Zapisz SKU Allegro do bazy
+      // 1. Update Allegro API (if listing exists)
+      if (item.allegro_listing_id) {
+        const res = await fetch('/api/update-allegro-sku', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ listingId: item.allegro_listing_id, newSku })
+        });
+        if (!res.ok) throw new Error('Błąd aktualizacji Allegro API');
+      }
+
+      // 2. Update status in local service (and thus sheets eventually)
       await inventoryService.updateItem(item.sku, {
-        allegro_sku: allegroSku.trim(),
-        sync_status: 'pending'
+        allegro_sku: newSku,
+        sync_status: 'synced'
       });
 
-      // TODO: Wywołaj API do dodania na Allegro
-      // Na razie tylko zapisujemy SKU
-
-      onNotify(`SKU Allegro "\${allegroSku}" zapisane dla EAN: \${item.ean || item.sku}`, 'success');
+      onNotify(`SKU Allegro "${newSku}" zostało zaktualizowane.`, 'success');
 
       // Wyczyść input
       setAllegroSkuInputs(prev => {
         const next = { ...prev };
-        delete next[item.ean || item.sku];
+        delete next[item.sku];
         return next;
       });
 
       onRefresh();
     } catch (err: any) {
-      onNotify(`Błąd zapisu: \${err?.message || 'Nieznany błąd'}`, 'error');
+      onNotify(`Błąd: \${err?.message || 'Nieznany błąd'}`, 'error');
     } finally {
       setSavingSku(null);
     }
@@ -121,7 +132,7 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {
           {items.map((item) => {
             const ean = item.ean || '-';
             const isSaving = savingSku === item.sku;
-            const allegroSkuValue = allegroSkuInputs[item.ean || item.sku] ?? item.allegro_sku ?? '';
+            const currentSku = allegroSkuInputs[item.sku] ?? item.allegro_sku ?? '';
             const hasAllegroListing = !!item.allegro_listing_id;
             const isLinked = !!item.allegro_sku;
 
@@ -196,14 +207,12 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {
                     <input
                       type="text"
                       placeholder="Wpisz SKU..."
-                      value={allegroSkuValue}
-                      onChange={(e) => handleAllegroSkuChange(item.ean || item.sku, e.target.value)}
-                      disabled={hasAllegroListing}
-                      className={`w-full px-2 py-1.5 text-xs font-bold border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all \${
-                      hasAllegroListing 
-                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-not-allowed' 
+                      value={currentSku}
+                      onChange={(e) => handleAllegroSkuChange(item.sku, e.target.value)}
+                      className={`w-full px-2 py-1.5 text-xs font-bold border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all ${isSaving
+                        ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
                         : 'bg-white border-slate-200 text-slate-700'
-                    }`}
+                        }`}
                     />
                   </div>
 
@@ -211,21 +220,16 @@ const InventoryTable: React.FC<Props> = ({ items, onRefresh, onNotify, sales = {
                   <div>
                     <button
                       onClick={() => handleSaveAndAddToAllegro(item)}
-                      disabled={isSaving || hasAllegroListing}
-                      className={`w-full px-3 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 transition-all \${
-                      hasAllegroListing
-                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200 cursor-not-allowed'
-                        : isSaving
-                        ? 'bg-orange-100 text-orange-600 animate-pulse'
-                        : 'bg-orange-500 text-white hover:bg-orange-600 hover:shadow-lg hover:shadow-orange-500/30 active:scale-95'
-                    }`}
+                      disabled={isSaving}
+                      className={`w-full px-3 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 transition-all ${isSaving
+                          ? 'bg-orange-100 text-orange-600 animate-pulse cursor-not-allowed'
+                          : 'bg-orange-500 text-white hover:bg-orange-600 hover:shadow-lg hover:shadow-orange-500/30 active:scale-95'
+                        }`}
                     >
                       {isSaving ? (
                         <><RefreshCw className="w-3 h-3 animate-spin" /> ...</>
-                      ) : hasAllegroListing ? (
-                        <><span className="text-emerald-600">✓</span> OK</>
                       ) : (
-                        <><Save className="w-3 h-3" /> Zapisz</>
+                        <><Save className="w-3 h-3" /> Zaktualizuj</>
                       )}
                     </button>
                   </div>

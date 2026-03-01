@@ -8,6 +8,10 @@
     {
       "path": "/api/cron-daily",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/full-sync",
+      "schedule": "0 9,21 * * *"
     }
   ]
 }
