@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getGoogleSheetsClient, fetchSheetData, parseSheetNum } from './_lib/google-sheets';
+import { getGoogleSheetsClient, fetchSheetData, parseSheetNum } from './_lib/google-sheets.js';
 
 export const runtime = 'nodejs';
 
