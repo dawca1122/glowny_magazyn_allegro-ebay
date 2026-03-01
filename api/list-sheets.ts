@@ -1,7 +1,7 @@
 import { getGoogleSheetsClient } from './_lib/google-sheets.js';
 
 export const runtime = 'nodejs';
-const SHEET_ID = process.env.SPREADSHEET_ID_INVENTORY || '1Rkl0t9-7fD4GG6t0dP7_cexo8Ctg48WPwUKfl-_dN18';
+const SHEET_ID = process.env.SPREADSHEEET_ID_INVENTORY || process.env.SPREADSHEET_ID_INVENTORY || '1Rkl0t9-7fD4GG6t0dP7_cexo8Ctg48WPwUKfl-_dN18';
 
 export default async function handler(req, res) {
     try {

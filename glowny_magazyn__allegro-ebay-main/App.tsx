@@ -632,7 +632,7 @@ const App: React.FC = () => {
                     <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
                       <p className="text-sm text-emerald-700 font-semibold mb-1">Przychód dziś (eBay)</p>
                       <p className="text-2xl font-black text-emerald-900">€{safeNum(netProfit.daily.revenue.ebay).toFixed(2)}</p>
-                      <p className="text-xs text-emerald-600 mt-1">{netProfit.daily.revenue.ebay > 0 ? 'Dane z Dzidek' : 'Sklep zamknięty'}</p>
+                      <p className="text-xs text-emerald-600 mt-1">{netProfit.daily.revenue.ebay > 0 ? 'Dane z Arkusza LIVE' : 'Sklep zamknięty'}</p>
                     </div>
                     <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
                       <p className="text-sm text-emerald-700 font-semibold mb-1">Zysk netto dziś</p>
@@ -661,7 +661,7 @@ const App: React.FC = () => {
                   </div>
 
                   <div className="mt-4 text-sm text-slate-500">
-                    <p>📊 <span className="font-semibold">Źródło danych:</span> Dzidek API</p>
+                    <p>📊 <span className="font-semibold">Źródło danych:</span> Arkusz Google LIVE</p>
                     <p>📨 <span className="font-semibold">Miesięcznie:</span> €{safeNum(netProfit.monthly.revenue.ebay).toFixed(2)}</p>
                   </div>
                 </div>
@@ -679,7 +679,7 @@ const App: React.FC = () => {
                     <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
                       <p className="text-sm text-indigo-700 font-semibold mb-1">Przychód dziś (Allegro)</p>
                       <p className="text-2xl font-black text-indigo-900">{safeNum(netProfit.daily.revenue.allegro).toFixed(2)} PLN</p>
-                      <p className="text-xs text-indigo-600 mt-1">{netProfit.daily.revenue.allegro > 0 ? 'Dane z Dzidek' : 'Brak sprzedaży dziś'}</p>
+                      <p className="text-xs text-indigo-600 mt-1">{netProfit.daily.revenue.allegro > 0 ? 'Dane z Arkusza LIVE' : 'Brak sprzedaży dziś'}</p>
                     </div>
                     <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
                       <p className="text-sm text-indigo-700 font-semibold mb-1">Zysk netto dziś</p>
@@ -827,7 +827,7 @@ const App: React.FC = () => {
                 <div className="bg-white p-5 rounded-[20px] border border-emerald-200 shadow-sm">
                   <p className="text-sm font-semibold text-emerald-600 mb-2">Zysk eBay (miesiąc)</p>
                   <p className="text-2xl font-black text-emerald-900">€{safeNum(netProfit.monthly.net.ebay).toFixed(2)}</p>
-                  <p className="text-xs text-emerald-600 mt-1">Dane z Dzidek API</p>
+                  <p className="text-xs text-emerald-600 mt-1">Dane z Arkusza Google</p>
                 </div>
                 <div className="bg-white p-5 rounded-[20px] border border-indigo-200 shadow-sm">
                   <p className="text-sm font-semibold text-indigo-600 mb-2">Zysk Allegro (miesiąc)</p>
@@ -964,7 +964,7 @@ const App: React.FC = () => {
                 <div className="flex items-center justify-between mb-6">
                   <div>
                     <h2 className="text-2xl font-black text-white">📊 SUMA RAZEM (eBay + Allegro)</h2>
-                    <p className="text-slate-300 font-medium">Dane z Dzidek API - prawdziwe wartości</p>
+                    <p className="text-slate-300 font-medium">Dane z Arkusza Google - prawdziwe wartości</p>
                   </div>
                   <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
                     <span className="text-white font-bold text-sm">{reportType === 'weekly' ? 'TYGODNIOWY' : reportType === 'monthly' ? 'MIESIĘCZNY' : 'KWARTALNY'}</span>
